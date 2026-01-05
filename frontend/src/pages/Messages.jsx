@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext';
 import { useEncryption } from '../context/EncryptionContext';
 import { useNavigate } from 'react-router-dom';
 import { chatAPI } from '../services/api';
+import api from '../services/api';
 
 export default function Messages() {
     const { user, logout } = useAuth();
@@ -60,12 +61,7 @@ export default function Messages() {
 
     const sendHeartbeat = async () => {
         try {
-            await fetch(`http://${window.location.hostname}:8080/api/v1/users/heartbeat`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-                }
-            });
+            await api.post('/users/heartbeat');
         } catch (error) {
             console.warn('Heartbeat failed:', error);
         }
@@ -78,26 +74,17 @@ export default function Messages() {
         const updateOnlineStatus = async () => {
             try {
                 const userIds = conversations.map(c => c.user.id);
-                const response = await fetch(
-                    `http://${window.location.hostname}:8080/api/v1/users/online-status?` +
-                    userIds.map(id => `userIds=${id}`).join('&'),
-                    {
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-                        }
+                const params = new URLSearchParams();
+                userIds.forEach(id => params.append('userIds', id));
+                const resp = await api.get(`/users/online-status?${params.toString()}`);
+                const data = resp.data;
+                setConversations(prev => prev.map(conv => ({
+                    ...conv,
+                    user: {
+                        ...conv.user,
+                        online: data.statuses[conv.user.id] || false
                     }
-                );
-
-                if (response.ok) {
-                    const data = await response.json();
-                    setConversations(prev => prev.map(conv => ({
-                        ...conv,
-                        user: {
-                            ...conv.user,
-                            online: data.statuses[conv.user.id] || false
-                        }
-                    })));
-                }
+                })));
             } catch (error) {
                 console.warn('Failed to update online status:', error);
             }
@@ -111,14 +98,9 @@ export default function Messages() {
 
     const loadConversations = async () => {
         try {
-            const response = await fetch(`http://${window.location.hostname}:8080/api/v1/messages/conversations`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
+            const resp = await api.get('/messages/conversations');
+            const data = resp.data;
+            if (data) {
                 const convs = (data.conversations || []).map(conv => ({
                     id: conv.userId,
                     user: {
@@ -178,16 +160,8 @@ export default function Messages() {
 
             searchTimeoutRef.current = setTimeout(async () => {
                 try {
-                    const response = await fetch(`http://${window.location.hostname}:8080/api/v1/users/search?q=${encodeURIComponent(searchQuery)}`, {
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-                        }
-                    });
-
-                    if (response.ok) {
-                        const data = await response.json();
-                        setSearchResults(data.users || []);
-                    }
+                    const resp = await api.get(`/users/search?q=${encodeURIComponent(searchQuery)}`);
+                    setSearchResults(resp.data.users || []);
                 } catch (error) {
                     console.error('Search error:', error);
                     setSearchResults([]);
@@ -233,14 +207,8 @@ export default function Messages() {
         if (!selectedChat) return;
 
         try {
-            const response = await fetch(`http://${window.location.hostname}:8080/api/v1/messages/${selectedChat.user.id}`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-                }
-            });
-
-            if (response.ok) {
-                const data = await response.json();
+            const resp = await api.get(`/messages/${selectedChat.user.id}`);
+            const data = resp.data;
                 // Transform backend format to frontend format
                 const transformedMessages = (data.messages || []).map(msg => ({
                     id: msg.id,
@@ -270,7 +238,6 @@ export default function Messages() {
                 } catch (e) {
                     console.warn('Failed to cache messages:', e);
                 }
-            }
         } catch (error) {
             console.error('Failed to load messages:', error);
             // Try to load from cache
@@ -288,14 +255,7 @@ export default function Messages() {
 
     const updateMessageStatus = async (messageId, status) => {
         try {
-            await fetch(`http://${window.location.hostname}:8080/api/v1/messages/${messageId}/status`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-                },
-                body: JSON.stringify({ status })
-            });
+            await api.put(`/messages/${messageId}/status`, { status });
         } catch (error) {
             console.warn('Failed to update message status:', error);
         }
@@ -337,17 +297,9 @@ export default function Messages() {
             setMessages([...messages, optimisticMessage]);
 
             // Send to backend API
-            const response = await fetch(`http://${window.location.hostname}:8080/api/v1/messages/send`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-                },
-                body: JSON.stringify(messageData)
-            });
-
-            if (response.ok) {
-                const message = await response.json();
+            const resp = await api.post('/messages/send', messageData);
+            if (resp.status >= 200 && resp.status < 300) {
+                const message = resp.data;
 
                 // Update message with server response
                 setMessages(prev => prev.map(msg =>
@@ -371,13 +323,13 @@ export default function Messages() {
                         : msg
                 ));
 
-                const errorText = await response.text();
+                const errorText = resp.data || 'unknown error';
                 console.error('Failed to send message:', errorText);
 
                 // Show user-friendly error
-                if (response.status === 401) {
+                if (resp.status === 401) {
                     alert('Session expired. Please login again.');
-                } else if (response.status >= 500) {
+                } else if (resp.status >= 500) {
                     alert('Server error. Message will be retried.');
                 } else {
                     alert('Failed to send message. Please try again.');
@@ -411,17 +363,10 @@ export default function Messages() {
         setMessages(prev => [...prev, optimisticMessage]);
 
         try {
-            const response = await fetch(`http://${window.location.hostname}:8080/api/v1/messages/send`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
-                },
-                body: JSON.stringify(messageData)
-            });
+            const resp = await api.post('/messages/send', messageData);
 
-            if (response.ok) {
-                const message = await response.json();
+            if (resp.status >= 200 && resp.status < 300) {
+                const message = resp.data;
                 setMessages(prev => prev.map(msg =>
                     msg.id === optimisticMessage.id
                         ? {

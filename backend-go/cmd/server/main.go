@@ -100,11 +100,23 @@ func main() {
 		MaxAge:           12 * time.Hour,
 	}
 
-	// Production: Only allow specific origins
+	// Production: Allow Vercel deployments and localhost
 	if config.Environment == "production" {
-		corsConfig.AllowOrigins = []string{
-			"https://snaptalker.vercel.app",
-			"https://*.vercel.app",
+		corsConfig.AllowOriginFunc = func(origin string) bool {
+			// Allow main Vercel domain
+			if origin == "https://snaptalker.vercel.app" {
+				return true
+			}
+			// Allow Vercel preview deployments
+			if len(origin) > 19 && origin[:8] == "https://" && origin[len(origin)-11:] == ".vercel.app" {
+				return true
+			}
+			// Allow localhost for development testing
+			if len(origin) > 7 && origin[:7] == "http://" && 
+			   (origin[7:16] == "localhost" || origin[7:14] == "127.0.0") {
+				return true
+			}
+			return false
 		}
 	} else {
 		// Development: Allow all origins
