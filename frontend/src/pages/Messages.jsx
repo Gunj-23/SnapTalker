@@ -217,9 +217,9 @@ export default function Messages() {
                 id: msg.id,
                 sender_id: msg.senderId,
                 recipient_id: msg.recipientId,
-                content: msg.encryptedContent, // Display encrypted content as plain for now
+                content: msg.content,
                 created_at: msg.timestamp,
-                encrypted: false,
+                encrypted: msg.encrypted,
                 status: msg.status
             })).reverse(); // Reverse to show oldest first
 
@@ -297,9 +297,10 @@ export default function Messages() {
             // Prepare message data
             const messageData = {
                 recipientId: selectedChat.user.id,
-                encryptedContent: messageContent, // TODO: Encrypt if encryption enabled
-                iv: 'placeholder-iv',
-                messageNumber: messages.length + 1
+                content: messageContent,
+                contentType: 'text',
+                encrypted: false,
+                messageType: 'one_to_one'
             };
 
             // Send to backend API
@@ -312,7 +313,7 @@ export default function Messages() {
                     ? {
                         ...msg,
                         id: message.id,
-                        content: message.encryptedContent,
+                        content: message.content,
                         status: 'sent'
                     }
                     : msg
@@ -353,9 +354,10 @@ export default function Messages() {
         // Resend with new ID
         const messageData = {
             recipientId: selectedChat.user.id,
-            encryptedContent: failedMessage.content,
-            iv: 'placeholder-iv',
-            messageNumber: messages.length + 1
+            content: failedMessage.content,
+            contentType: 'text',
+            encrypted: false,
+            messageType: 'one_to_one'
         };
 
         const optimisticMessage = {
@@ -377,7 +379,7 @@ export default function Messages() {
                     ? {
                         ...msg,
                         id: message.id,
-                        content: message.encryptedContent,
+                        content: message.content,
                         status: 'sent'
                     }
                     : msg

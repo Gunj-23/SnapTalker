@@ -41,24 +41,25 @@ func NewService(db *storage.PostgresDB, redis *storage.RedisClient, minio *stora
 
 // Message represents an encrypted message
 type Message struct {
-	ID               string    `json:"id"`
-	SenderID         string    `json:"senderId"`
-	RecipientID      string    `json:"recipientId"`
-	EncryptedContent string    `json:"encryptedContent"`
-	IV               string    `json:"iv"`
-	MessageNumber    int       `json:"messageNumber"`
-	Timestamp        time.Time `json:"timestamp"`
-	Status           string    `json:"status"` // sent, delivered, read
-	MediaURL         string    `json:"mediaUrl,omitempty"`
+	ID          string    `json:"id"`
+	SenderID    string    `json:"senderId"`
+	RecipientID string    `json:"recipientId"`
+	Content     string    `json:"content"`
+	ContentType string    `json:"contentType"`
+	Encrypted   bool      `json:"encrypted"`
+	Timestamp   time.Time `json:"timestamp"`
+	Status      string    `json:"status"`
+	MessageType string    `json:"messageType"`
 }
 
 // SendMessageRequest represents a request to send a message
 type SendMessageRequest struct {
-	RecipientID      string `json:"recipientId" binding:"required"`
-	EncryptedContent string `json:"encryptedContent" binding:"required"`
-	IV               string `json:"iv" binding:"required"`
-	MessageNumber    int    `json:"messageNumber" binding:"required"`
-	MediaFile        []byte `json:"mediaFile,omitempty"`
+	RecipientID string `json:"recipientId" binding:"required"`
+	Content     string `json:"content" binding:"required"`
+	ContentType string `json:"contentType"`
+	Encrypted   bool   `json:"encrypted"`
+	MessageType string `json:"messageType"`
+	MediaFile   []byte `json:"mediaFile,omitempty"`
 }
 
 // SendMessage handles sending an encrypted message
@@ -92,24 +93,34 @@ func (s *Service) SendMessage(c *gin.Context) {
 	}
 
 	// Store message in database
+	contentType := req.ContentType
+	if contentType == "" {
+		contentType = "text"
+	}
+	encrypted := req.Encrypted
+	messageType := req.MessageType
+	if messageType == "" {
+		messageType = "one_to_one"
+	}
+
 	message := Message{
-		ID:               messageID,
-		SenderID:         senderID,
-		RecipientID:      req.RecipientID,
-		EncryptedContent: req.EncryptedContent,
-		IV:               req.IV,
-		MessageNumber:    req.MessageNumber,
-		Timestamp:        time.Now(),
-		Status:           "sent",
-		MediaURL:         mediaURL,
+		ID:          messageID,
+		SenderID:    senderID,
+		RecipientID: req.RecipientID,
+		Content:     req.Content,
+		ContentType: contentType,
+		Encrypted:   encrypted,
+		Timestamp:   time.Now(),
+		Status:      "sent",
+		MessageType: messageType,
 	}
 
 	query := `
-		INSERT INTO messages (id, sender_id, recipient_id, encrypted_content, iv, message_number, timestamp, status, media_url)
+		INSERT INTO messages (id, sender_id, recipient_id, content, content_type, encrypted, timestamp, status, message_type)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
 	_, err := s.db.Exec(query, message.ID, message.SenderID, message.RecipientID,
-		message.EncryptedContent, message.IV, message.MessageNumber, message.Timestamp, message.Status, message.MediaURL)
+		message.Content, message.ContentType, message.Encrypted, message.Timestamp, message.Status, message.MessageType)
 	if err != nil {
 		log.Printf("Failed to store message from %s to %s: %v", senderID, req.RecipientID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store message", "details": err.Error()})
@@ -157,7 +168,7 @@ func (s *Service) GetConversations(c *gin.Context) {
 					WHEN sender_id = $1 THEN recipient_id
 					ELSE sender_id
 				END as other_user_id,
-				encrypted_content,
+				content,
 				timestamp,
 				sender_id,
 				status,
@@ -182,7 +193,7 @@ func (s *Service) GetConversations(c *gin.Context) {
 		SELECT 
 			cm.other_user_id,
 			COALESCE(u.username, '') as username,
-			cm.encrypted_content,
+				cm.content,
 			cm.timestamp,
 			COALESCE(uc.unread_count, 0) as unread_count
 		FROM conversation_messages cm
@@ -232,7 +243,7 @@ func (s *Service) GetMessages(c *gin.Context) {
 
 	// Get messages from database
 	query := `
-		SELECT id, sender_id, recipient_id, encrypted_content, iv, message_number, timestamp, status, media_url
+		SELECT id, sender_id, recipient_id, content, content_type, encrypted, timestamp, status, message_type
 		FROM messages
 		WHERE (sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1)
 		ORDER BY timestamp DESC
@@ -249,8 +260,8 @@ func (s *Service) GetMessages(c *gin.Context) {
 	var messages []Message
 	for rows.Next() {
 		var msg Message
-		err := rows.Scan(&msg.ID, &msg.SenderID, &msg.RecipientID, &msg.EncryptedContent,
-			&msg.IV, &msg.MessageNumber, &msg.Timestamp, &msg.Status, &msg.MediaURL)
+		err := rows.Scan(&msg.ID, &msg.SenderID, &msg.RecipientID, &msg.Content,
+			&msg.ContentType, &msg.Encrypted, &msg.Timestamp, &msg.Status, &msg.MessageType)
 		if err != nil {
 			continue
 		}
