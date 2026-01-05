@@ -52,7 +52,7 @@ export default function Messages() {
         const token = localStorage.getItem('token');
         if (token) {
             wsService.connect(token);
-            
+
             wsService.on('message', (data) => {
                 // Handle incoming message
                 if (data.type === 'new_message') {

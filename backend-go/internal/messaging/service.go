@@ -410,7 +410,7 @@ func (s *Service) deliverMessage(msg Message) {
 			"status":      "delivered",
 		}
 		conn.WriteJSON(notification)
-		
+
 		// Notify sender that message was delivered
 		if senderConn, ok := s.clients[msg.SenderID]; ok {
 			statusUpdate := map[string]interface{}{
@@ -447,12 +447,6 @@ func (s *Service) sendPendingMessages(conn *websocket.Conn, userID string) {
 		}
 		conn.WriteJSON(msg)
 	}
-}
-
-// handleWebSocketMessage processes messages received via WebSocket
-func (s *Service) handleWebSocketMessage(userID string, msg Message) {
-	// This would handle typing indicators, read receipts, etc.
-	// For now, just acknowledge
 }
 
 // notifyStatusUpdate notifies the sender about message status changes
@@ -515,9 +509,4 @@ func (s *Service) broadcastUserStatus(userID string, online bool) {
 			conn.WriteJSON(notification)
 		}
 	}
-}
-
-// handleWebSocketMessage is deprecated - keeping for compatibility
-func (s *Service) handleWebSocketMessage(userID string, msg Message) {
-	// This function is no longer used but kept for backwards compatibility
 }
