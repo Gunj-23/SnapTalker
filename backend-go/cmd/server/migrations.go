@@ -85,6 +85,26 @@ func runMigrations(db *storage.PostgresDB) error {
 		return err
 	}
 
+	// Add missing columns if they don't exist (for existing tables)
+	db.Exec(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS encrypted_content TEXT`)
+	db.Exec(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS iv TEXT`)
+	db.Exec(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_number INTEGER DEFAULT 0`)
+	db.Exec(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'sent'`)
+	db.Exec(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS media_url TEXT`)
+	
+	// Migrate old 'content' column to 'encrypted_content' if needed
+	var hasContentColumn bool
+	db.QueryRow("SELECT EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'messages' AND column_name = 'content')").Scan(&hasContentColumn)
+	if hasContentColumn {
+		log.Println("Migrating 'content' column to 'encrypted_content'...")
+		// Copy data from content to encrypted_content if encrypted_content is empty
+		db.Exec(`UPDATE messages SET encrypted_content = content WHERE encrypted_content IS NULL OR encrypted_content = ''`)
+		// Set default IV for old messages
+		db.Exec(`UPDATE messages SET iv = 'legacy-iv' WHERE iv IS NULL OR iv = ''`)
+		// Set default message_number for old messages
+		db.Exec(`UPDATE messages SET message_number = 1 WHERE message_number IS NULL OR message_number = 0`)
+	}
+
 	// Create indexes
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient ON messages(sender_id, recipient_id)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp DESC)`)
