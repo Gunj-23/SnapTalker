@@ -111,8 +111,8 @@ func (s *Service) SendMessage(c *gin.Context) {
 	_, err := s.db.Exec(query, message.ID, message.SenderID, message.RecipientID,
 		message.EncryptedContent, message.IV, message.MessageNumber, message.Timestamp, message.Status, message.MediaURL)
 	if err != nil {
-		log.Printf("Failed to store message: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store message"})
+		log.Printf("Failed to store message from %s to %s: %v", senderID, req.RecipientID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store message", "details": err.Error()})
 		return
 	}
 
@@ -181,7 +181,7 @@ func (s *Service) GetConversations(c *gin.Context) {
 		)
 		SELECT 
 			cm.other_user_id,
-			u.username,
+			COALESCE(u.username, '') as username,
 			cm.encrypted_content,
 			cm.timestamp,
 			COALESCE(uc.unread_count, 0) as unread_count
@@ -194,8 +194,8 @@ func (s *Service) GetConversations(c *gin.Context) {
 
 	rows, err := s.db.Query(query, userID)
 	if err != nil {
-		log.Printf("Failed to query conversations: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		log.Printf("Failed to query conversations for user %s: %v", userID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error", "details": err.Error()})
 		return
 	}
 	defer rows.Close()
@@ -240,8 +240,8 @@ func (s *Service) GetMessages(c *gin.Context) {
 	`
 	rows, err := s.db.Query(query, userID, chatID, limit, offset)
 	if err != nil {
-		log.Printf("Failed to query messages: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error"})
+		log.Printf("Failed to query messages for user %s and chat %s: %v", userID, chatID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "database error", "details": err.Error()})
 		return
 	}
 	defer rows.Close()
