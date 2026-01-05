@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/url"
+	"strings"
 
 	_ "github.com/lib/pq"
 )
@@ -15,7 +17,10 @@ type PostgresDB struct {
 
 // NewPostgresDB creates a new PostgreSQL database connection
 func NewPostgresDB(connectionString string) (*PostgresDB, error) {
-	db, err := sql.Open("postgres", connectionString)
+	// Convert Prisma Accelerate URL to standard PostgreSQL URL
+	connStr := parsePrismaURL(connectionString)
+	
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
@@ -152,4 +157,36 @@ func (db *PostgresDB) InitSchema() error {
 
 	_, err := db.Exec(schema)
 	return err
+}
+
+// parsePrismaURL converts a Prisma Accelerate URL to standard PostgreSQL connection string
+func parsePrismaURL(connString string) string {
+	// If it starts with prisma+postgres://, extract the API endpoint
+	if strings.HasPrefix(connString, "prisma+postgres://") {
+		// Prisma Accelerate uses HTTP API, not direct PostgreSQL
+		// Parse the URL to extract host and API key
+		u, err := url.Parse(connString)
+		if err != nil {
+			return connString
+		}
+		
+		// Extract API key from query parameters
+		apiKey := u.Query().Get("api_key")
+		if apiKey == "" {
+			return connString
+		}
+		
+		// For Prisma Accelerate, construct direct connection to Prisma's proxy
+		// Format: postgres://user:apikey@host/database?sslmode=require
+		host := u.Host
+		if host == "" {
+			host = "accelerate.prisma-data.net"
+		}
+		
+		// Return standard PostgreSQL URL with SSL required
+		return fmt.Sprintf("postgres://prisma:%s@%s/prisma?sslmode=require", apiKey, host)
+	}
+	
+	// If already a standard postgres:// URL, return as-is
+	return connString
 }
