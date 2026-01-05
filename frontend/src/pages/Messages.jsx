@@ -3,7 +3,8 @@ import {
     MessageCircle, Send, Search, MoreVertical, Phone, Video,
     Image as ImageIcon, Lock, Check, CheckCheck, Shield,
     AlertTriangle, Clock, Menu, Settings, User, LogOut, Smile,
-    Paperclip, Mic, X, ChevronDown, Archive, Volume2, UserPlus, Share2, Loader2
+    Paperclip, Mic, X, ChevronDown, Archive, Volume2, UserPlus, Share2, Loader2,
+    Reply, Trash2, Forward
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useEncryption } from '../context/EncryptionContext';
@@ -41,6 +42,7 @@ export default function Messages() {
     const [uploadingFile, setUploadingFile] = useState(false);
     const [typingUsers, setTypingUsers] = useState({}); // Map of userID -> isTyping
     const [showReactionPicker, setShowReactionPicker] = useState(null); // messageId of message to react to
+    const [replyingTo, setReplyingTo] = useState(null); // Message being replied to
     const messagesEndRef = useRef(null);
     const menuRef = useRef(null);
     const searchTimeoutRef = useRef(null);
@@ -161,7 +163,7 @@ export default function Messages() {
     // Handle typing indicator
     const handleTyping = (text) => {
         setNewMessage(text);
-        
+
         if (!selectedChat) return;
 
         // Send typing start notification
@@ -281,6 +283,9 @@ export default function Messages() {
             if (menuRef.current && !menuRef.current.contains(event.target)) {
                 setShowMenu(false);
             }
+            if (reactionPickerRef.current && !reactionPickerRef.current.contains(event.target)) {
+                setShowReactionPicker(null);
+            }
         }
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -378,6 +383,8 @@ export default function Messages() {
 
         const messageContent = newMessage;
         setNewMessage('');
+        const replyTo = replyingTo;
+        setReplyingTo(null); // Clear reply state
 
         // Add optimistic message to UI
         const optimisticMessage = {
@@ -386,7 +393,9 @@ export default function Messages() {
             content: selectedFile ? `📎 ${selectedFile.name}` : messageContent,
             created_at: new Date(),
             encrypted: false,
-            status: 'sending'
+            status: 'sending',
+            replyToId: replyTo?.id,
+            replyToContent: replyTo?.content
         };
         setMessages([...messages, optimisticMessage]);
 
@@ -397,7 +406,8 @@ export default function Messages() {
                 content: messageContent || `File: ${selectedFile?.name}`,
                 contentType: selectedFile ? 'file' : 'text',
                 encrypted: false,
-                messageType: 'one_to_one'
+                messageType: 'one_to_one',
+                replyToId: replyTo?.id || null
             };
 
             // Handle file upload if present
@@ -978,41 +988,125 @@ export default function Messages() {
                             {messages.map((message) => {
                                 const isOwn = message.sender_id === user?.id;
                                 const isFailed = message.status === 'failed';
+                                const messageReactions = message.reactions || [];
+                                const userReaction = messageReactions.find(r => r.userId === user?.id);
+                                
                                 return (
                                     <div
                                         key={message.id}
-                                        className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
+                                        className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group`}
                                     >
-                                        <div
-                                            className={`max-w-[65%] md:max-w-md px-3 py-2 rounded-lg shadow-sm ${isFailed
-                                                ? 'bg-[#7c2d12] text-[#e9edef]'
-                                                : isOwn
-                                                    ? 'bg-[#005c4b] text-[#e9edef]'
-                                                    : 'bg-[#202c33] text-[#e9edef]'
-                                                }`}
-                                        >
-                                            <p className="break-words text-[14.2px] leading-[19px]" translate="no">{message.content}</p>
-                                            <div className="flex items-center justify-end gap-1 mt-1">
-                                                <span className="text-[11px] text-[#8696a0]">
-                                                    {formatMessageTime(message.created_at)}
-                                                </span>
-                                                {isOwn && (
-                                                    <div className="flex items-center ml-1">
-                                                        {message.status === 'sending' && <Clock className="w-3.5 h-3.5 text-[#8696a0]" />}
-                                                        {message.status === 'sent' && <Check className="w-3.5 h-3.5 text-[#8696a0]" />}
-                                                        {message.status === 'delivered' && <CheckCheck className="w-3.5 h-3.5 text-[#8696a0]" />}
-                                                        {message.status === 'read' && <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />}
-                                                        {message.status === 'failed' && (
-                                                            <button
-                                                                onClick={() => retryFailedMessage(message)}
-                                                                className="text-[#ef4444] hover:text-[#dc2626] flex items-center gap-1"
-                                                                title="Retry sending"
-                                                            >
-                                                                <AlertTriangle className="w-3.5 h-3.5" />
-                                                            </button>
-                                                        )}
+                                        <div className="relative">
+                                            <div
+                                                className={`max-w-[65%] md:max-w-md px-3 py-2 rounded-lg shadow-sm ${isFailed
+                                                    ? 'bg-[#7c2d12] text-[#e9edef]'
+                                                    : isOwn
+                                                        ? 'bg-[#005c4b] text-[#e9edef]'
+                                                        : 'bg-[#202c33] text-[#e9edef]'
+                                                    }`}
+                                            >
+                                                {/* Reply preview */}
+                                                {message.replyToId && message.replyToContent && (
+                                                    <div className={`mb-2 pb-2 border-l-2 pl-2 ${isOwn ? 'border-[#06cf9c]' : 'border-[#00a884]'} bg-black bg-opacity-20 rounded`}>
+                                                        <div className="text-[11px] font-semibold text-[#00a884] mb-0.5">
+                                                            {message.sender_id === user?.id ? 'You' : selectedChat?.user.name}
+                                                        </div>
+                                                        <div className="text-[12px] text-[#8696a0] truncate">
+                                                            {message.replyToContent}
+                                                        </div>
                                                     </div>
                                                 )}
+                                                <p className="break-words text-[14.2px] leading-[19px]" translate="no">{message.content}</p>
+                                                <div className="flex items-center justify-end gap-1 mt-1">
+                                                    <span className="text-[11px] text-[#8696a0]">
+                                                        {formatMessageTime(message.created_at)}
+                                                    </span>
+                                                    {isOwn && (
+                                                        <div className="flex items-center ml-1">
+                                                            {message.status === 'sending' && <Clock className="w-3.5 h-3.5 text-[#8696a0]" />}
+                                                            {message.status === 'sent' && <Check className="w-3.5 h-3.5 text-[#8696a0]" />}
+                                                            {message.status === 'delivered' && <CheckCheck className="w-3.5 h-3.5 text-[#8696a0]" />}
+                                                            {message.status === 'read' && <CheckCheck className="w-3.5 h-3.5 text-[#53bdeb]" />}
+                                                            {message.status === 'failed' && (
+                                                                <button
+                                                                    onClick={() => retryFailedMessage(message)}
+                                                                    className="text-[#ef4444] hover:text-[#dc2626] flex items-center gap-1"
+                                                                    title="Retry sending"
+                                                                >
+                                                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* Reactions display */}
+                                            {messageReactions.length > 0 && (
+                                                <div className={`absolute -bottom-2 ${isOwn ? 'left-0' : 'right-0'} flex items-center gap-1 bg-[#1f2c33] border border-[#2a3942] rounded-full px-1.5 py-0.5 shadow-lg`}>
+                                                    {Object.entries(
+                                                        messageReactions.reduce((acc, r) => {
+                                                            acc[r.emoji] = (acc[r.emoji] || 0) + 1;
+                                                            return acc;
+                                                        }, {})
+                                                    ).map(([emoji, count]) => (
+                                                        <button
+                                                            key={emoji}
+                                                            onClick={() => {
+                                                                if (userReaction?.emoji === emoji) {
+                                                                    handleRemoveReaction(message.id);
+                                                                } else {
+                                                                    handleAddReaction(message.id, emoji);
+                                                                }
+                                                            }}
+                                                            className={`flex items-center gap-0.5 text-xs hover:bg-[#2a3942] rounded-full px-1 transition-colors ${
+                                                                userReaction?.emoji === emoji ? 'bg-[#2a3942]' : ''
+                                                            }`}
+                                                            title={messageReactions.filter(r => r.emoji === emoji).map(r => r.username).join(', ')}
+                                                        >
+                                                            <span className="text-sm">{emoji}</span>
+                                                            {count > 1 && <span className="text-[#8696a0] text-[10px]">{count}</span>}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            {/* Action buttons (shows on hover) */}
+                                            <div className={`absolute top-0 ${isOwn ? 'left-0 -translate-x-full' : 'right-0 translate-x-full'} opacity-0 group-hover:opacity-100 transition-opacity px-2 flex gap-1`}>
+                                                <button
+                                                    onClick={() => setReplyingTo(message)}
+                                                    className="p-1 bg-[#2a3942] hover:bg-[#374751] rounded-full text-[#8696a0] transition-colors"
+                                                    title="Reply"
+                                                >
+                                                    <Reply className="w-4 h-4" />
+                                                </button>
+                                                <div className="relative">
+                                                    <button
+                                                        onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
+                                                        className="p-1 bg-[#2a3942] hover:bg-[#374751] rounded-full text-[#8696a0] transition-colors"
+                                                        title="React"
+                                                    >
+                                                        <Smile className="w-4 h-4" />
+                                                    </button>
+
+                                                    {/* Reaction picker popup */}
+                                                    {showReactionPicker === message.id && (
+                                                        <div 
+                                                            ref={reactionPickerRef}
+                                                            className={`absolute ${isOwn ? 'right-full mr-2' : 'left-full ml-2'} top-0 bg-[#202c33] border border-[#2a3942] rounded-lg shadow-2xl p-2 flex gap-1 z-50`}
+                                                        >
+                                                            {['❤️', '😂', '😮', '😢', '🙏', '👍'].map(emoji => (
+                                                                <button
+                                                                    key={emoji}
+                                                                    onClick={() => handleAddReaction(message.id, emoji)}
+                                                                    className="text-2xl hover:scale-125 transition-transform p-1 hover:bg-[#2a3942] rounded"
+                                                                >
+                                                                    {emoji}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -1049,6 +1143,27 @@ export default function Messages() {
                                     />
                                 </div>
                                 <div className="flex-1 relative">
+                                    {/* Reply banner */}
+                                    {replyingTo && (
+                                        <div className="absolute bottom-full mb-2 left-0 right-0 bg-[#233138] rounded-lg p-3 shadow-2xl border-l-4 border-[#00a884]">
+                                            <div className="flex items-start justify-between gap-2">
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-[#00a884] text-xs font-semibold mb-1">
+                                                        Replying to {replyingTo.sender_id === user?.id ? 'yourself' : selectedChat?.user.name}
+                                                    </div>
+                                                    <div className="text-[#8696a0] text-sm truncate">
+                                                        {replyingTo.content}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => setReplyingTo(null)}
+                                                    className="text-[#8696a0] hover:text-[#e9edef] flex-shrink-0"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
                                     {selectedFile && (
                                         <div className="absolute bottom-full mb-2 left-0 bg-[#233138] rounded-lg p-3 shadow-2xl flex items-center gap-2">
                                             <Paperclip className="w-4 h-4 text-[#00a884]" />

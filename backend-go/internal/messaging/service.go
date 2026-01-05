@@ -23,10 +23,10 @@ var upgrader = websocket.Upgrader{
 
 // Service handles message routing and delivery
 type Service struct {
-	db         *storage.PostgresDB
-	redis      *storage.RedisClient
-	minio      *storage.MinIOClient
-	clients    map[string]*websocket.Conn // userID -> websocket connection
+	db           *storage.PostgresDB
+	redis        *storage.RedisClient
+	minio        *storage.MinIOClient
+	clients      map[string]*websocket.Conn // userID -> websocket connection
 	typingStatus map[string]map[string]bool // userID -> map[recipientID]isTyping
 }
 
@@ -53,26 +53,29 @@ type Reaction struct {
 
 // Message represents an encrypted message
 type Message struct {
-	ID          string     `json:"id"`
-	SenderID    string     `json:"senderId"`
-	RecipientID string     `json:"recipientId"`
-	Content     string     `json:"content"`
-	ContentType string     `json:"contentType"`
-	Encrypted   bool       `json:"encrypted"`
-	Timestamp   time.Time  `json:"timestamp"`
-	Status      string     `json:"status"`
-	MessageType string     `json:"messageType"`
-	Reactions   []Reaction `json:"reactions,omitempty"`
+	ID             string     `json:"id"`
+	SenderID       string     `json:"senderId"`
+	RecipientID    string     `json:"recipientId"`
+	Content        string     `json:"content"`
+	ContentType    string     `json:"contentType"`
+	Encrypted      bool       `json:"encrypted"`
+	Timestamp      time.Time  `json:"timestamp"`
+	Status         string     `json:"status"`
+	MessageType    string     `json:"messageType"`
+	ReplyToID      *string    `json:"replyToId,omitempty"`
+	ReplyToContent *string    `json:"replyToContent,omitempty"`
+	Reactions      []Reaction `json:"reactions,omitempty"`
 }
 
 // SendMessageRequest represents a request to send a message
 type SendMessageRequest struct {
-	RecipientID string `json:"recipientId" binding:"required"`
-	Content     string `json:"content" binding:"required"`
-	ContentType string `json:"contentType"`
-	Encrypted   bool   `json:"encrypted"`
-	MessageType string `json:"messageType"`
-	MediaFile   []byte `json:"mediaFile,omitempty"`
+	RecipientID string  `json:"recipientId" binding:"required"`
+	Content     string  `json:"content" binding:"required"`
+	ContentType string  `json:"contentType"`
+	Encrypted   bool    `json:"encrypted"`
+	MessageType string  `json:"messageType"`
+	ReplyToID   *string `json:"replyToId,omitempty"`
+	MediaFile   []byte  `json:"mediaFile,omitempty"`
 }
 
 // SendMessage handles sending an encrypted message
@@ -123,14 +126,26 @@ func (s *Service) SendMessage(c *gin.Context) {
 		Timestamp:   time.Now(),
 		Status:      "sent",
 		MessageType: messageType,
+		ReplyToID:   req.ReplyToID,
+	}
+
+	// Get reply content if replying to a message
+	var replyToContent *string
+	if req.ReplyToID != nil {
+		var content string
+		replyQuery := `SELECT content FROM messages WHERE id = $1`
+		if err := s.db.QueryRow(replyQuery, *req.ReplyToID).Scan(&content); err == nil {
+			replyToContent = &content
+			message.ReplyToContent = replyToContent
+		}
 	}
 
 	query := `
-		INSERT INTO messages (id, sender_id, recipient_id, content, content_type, encrypted, timestamp, status, message_type)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO messages (id, sender_id, recipient_id, content, content_type, encrypted, timestamp, status, message_type, reply_to_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 	_, err := s.db.Exec(query, message.ID, message.SenderID, message.RecipientID,
-		message.Content, message.ContentType, message.Encrypted, message.Timestamp, message.Status, message.MessageType)
+		message.Content, message.ContentType, message.Encrypted, message.Timestamp, message.Status, message.MessageType, message.ReplyToID)
 	if err != nil {
 		log.Printf("Failed to store message from %s to %s: %v", senderID, req.RecipientID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to store message", "details": err.Error()})
@@ -253,10 +268,13 @@ func (s *Service) GetMessages(c *gin.Context) {
 
 	// Get messages from database
 	query := `
-		SELECT id, sender_id, recipient_id, content, content_type, encrypted, timestamp, status, message_type
-		FROM messages
-		WHERE (sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1)
-		ORDER BY timestamp DESC
+		SELECT m.id, m.sender_id, m.recipient_id, m.content, m.content_type, m.encrypted, 
+		       m.timestamp, m.status, m.message_type, m.reply_to_id,
+		       r.content as reply_content
+		FROM messages m
+		LEFT JOIN messages r ON m.reply_to_id = r.id
+		WHERE (m.sender_id = $1 AND m.recipient_id = $2) OR (m.sender_id = $2 AND m.recipient_id = $1)
+		ORDER BY m.timestamp DESC
 		LIMIT $3 OFFSET $4
 	`
 	rows, err := s.db.Query(query, userID, chatID, limit, offset)
@@ -270,11 +288,15 @@ func (s *Service) GetMessages(c *gin.Context) {
 	var messages []Message
 	for rows.Next() {
 		var msg Message
+		var replyToID, replyContent *string
 		err := rows.Scan(&msg.ID, &msg.SenderID, &msg.RecipientID, &msg.Content,
-			&msg.ContentType, &msg.Encrypted, &msg.Timestamp, &msg.Status, &msg.MessageType)
+			&msg.ContentType, &msg.Encrypted, &msg.Timestamp, &msg.Status, &msg.MessageType,
+			&replyToID, &replyContent)
 		if err != nil {
 			continue
 		}
+		msg.ReplyToID = replyToID
+		msg.ReplyToContent = replyContent
 		messages = append(messages, msg)
 	}
 
@@ -559,9 +581,9 @@ func (s *Service) handleTypingIndicator(userID, recipientID string, isTyping boo
 	// Notify recipient if online
 	if conn, ok := s.clients[recipientID]; ok {
 		notification := map[string]interface{}{
-			"type":      "typing",
-			"userId":    userID,
-			"isTyping":  isTyping,
+			"type":     "typing",
+			"userId":   userID,
+			"isTyping": isTyping,
 		}
 		conn.WriteJSON(notification)
 	}
@@ -734,4 +756,3 @@ func (s *Service) broadcastReaction(messageID, userID, username, emoji, action s
 		}
 	}
 }
-

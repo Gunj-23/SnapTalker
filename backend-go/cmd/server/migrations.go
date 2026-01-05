@@ -88,6 +88,10 @@ func runMigrations(db *storage.PostgresDB) error {
 	// Add last_seen column for online/offline tracking
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
 
+	// Add reply_to_id for message replies
+	db.Exec(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS reply_to_id TEXT`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_reply_to ON messages(reply_to_id) WHERE reply_to_id IS NOT NULL`)
+
 	// Create message reactions table
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS message_reactions (

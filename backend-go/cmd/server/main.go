@@ -171,7 +171,7 @@ func main() {
 				messagesGroup.GET("/:chatId", messagingService.GetMessages)
 				messagesGroup.PUT("/:id/status", messagingService.UpdateMessageStatus)
 				messagesGroup.GET("/stream", messagingService.StreamMessages)
-				
+
 				// Message reactions
 				messagesGroup.POST("/reactions", messagingService.AddReaction)
 				messagesGroup.DELETE("/reactions/:messageId", messagingService.RemoveReaction)
