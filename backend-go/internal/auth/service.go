@@ -249,6 +249,13 @@ func (s *Service) AuthMiddleware() gin.HandlerFunc {
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			if userID, ok := claims["userId"].(string); ok {
 				c.Set("userId", userID)
+				
+				// Set user context for Row-Level Security
+				if err := s.db.SetUserContext(c.Request.Context(), userID); err != nil {
+					// Log error but don't block request - RLS policies will handle authorization
+					fmt.Printf("Warning: Failed to set RLS user context: %v\n", err)
+				}
+				
 				c.Next()
 				return
 			}

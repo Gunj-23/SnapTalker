@@ -19,7 +19,7 @@ type PostgresDB struct {
 func NewPostgresDB(connectionString string) (*PostgresDB, error) {
 	// Convert Prisma Accelerate URL to standard PostgreSQL URL
 	connStr := parsePrismaURL(connectionString)
-	
+
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -70,6 +70,79 @@ func (db *PostgresDB) QueryRow(query string, args ...interface{}) *sql.Row {
 // QueryContext executes a query with context
 func (db *PostgresDB) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	return db.DB.QueryContext(ctx, query, args...)
+}
+
+// SetUserContext sets the current user ID for Row-Level Security
+// This should be called at the beginning of each request
+func (db *PostgresDB) SetUserContext(ctx context.Context, userID string) error {
+	_, err := db.DB.ExecContext(ctx, "SET LOCAL app.current_user_id = $1", userID)
+	return err
+}
+
+// ExecWithUser executes a query with user context for RLS
+func (db *PostgresDB) ExecWithUser(ctx context.Context, userID string, query string, args ...interface{}) (sql.Result, error) {
+	tx, err := db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	// Set user context for RLS
+	if _, err := tx.ExecContext(ctx, "SET LOCAL app.current_user_id = $1", userID); err != nil {
+		return nil, err
+	}
+
+	// Execute the actual query
+	result, err := tx.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// QueryWithUser executes a query with user context for RLS
+func (db *PostgresDB) QueryWithUser(ctx context.Context, userID string, query string, args ...interface{}) (*sql.Rows, error) {
+	tx, err := db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set user context for RLS
+	if _, err := tx.ExecContext(ctx, "SET LOCAL app.current_user_id = $1", userID); err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	// Execute the actual query
+	rows, err := tx.QueryContext(ctx, query, args...)
+	if err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	return rows, nil
+}
+
+// QueryRowWithUser executes a query that returns a single row with user context for RLS
+func (db *PostgresDB) QueryRowWithUser(ctx context.Context, userID string, query string, args ...interface{}) *sql.Row {
+	tx, err := db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil
+	}
+	defer tx.Rollback()
+
+	// Set user context for RLS
+	if _, err := tx.ExecContext(ctx, "SET LOCAL app.current_user_id = $1", userID); err != nil {
+		return nil
+	}
+
+	// Execute the actual query
+	return tx.QueryRowContext(ctx, query, args...)
 }
 
 // InitSchema initializes the database schema
@@ -169,24 +242,24 @@ func parsePrismaURL(connString string) string {
 		if err != nil {
 			return connString
 		}
-		
+
 		// Extract API key from query parameters
 		apiKey := u.Query().Get("api_key")
 		if apiKey == "" {
 			return connString
 		}
-		
+
 		// For Prisma Accelerate, construct direct connection to Prisma's proxy
 		// Format: postgres://user:apikey@host/database?sslmode=require
 		host := u.Host
 		if host == "" {
 			host = "accelerate.prisma-data.net"
 		}
-		
+
 		// Return standard PostgreSQL URL with SSL required
 		return fmt.Sprintf("postgres://prisma:%s@%s/prisma?sslmode=require", apiKey, host)
 	}
-	
+
 	// If already a standard postgres:// URL, return as-is
 	return connString
 }
