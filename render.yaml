@@ -11,7 +11,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        value: postgresql://snaptalker_db_user:On6P9R6lRcTsQKwFUeMKoQyWTLbSA8w6@dpg-d5dm39shg0os73fbjirg-a/snaptalker_db
+        value: postgresql://snaptalker_db_user:On6P9R6lRcTsQKwFUeMKoQyWTLbSA8w6@dpg-d5dm39shg0os73fbjirg-a.singapore-postgres.render.com/snaptalker_db
       - key: JWT_SECRET
         value: snaptalker-super-secret-jwt-key-for-production-2026-min-256-bits
       - key: ENVIRONMENT
