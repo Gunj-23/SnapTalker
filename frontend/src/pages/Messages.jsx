@@ -12,6 +12,8 @@ import { useNavigate } from 'react-router-dom';
 import { chatAPI } from '../services/api';
 import api from '../services/api';
 import wsService from '../services/websocket';
+import VoiceRecorder from '../components/VoiceRecorder';
+import AudioPlayer from '../components/AudioPlayer';
 
 export default function Messages() {
     const { user, logout } = useAuth();
@@ -43,6 +45,7 @@ export default function Messages() {
     const [typingUsers, setTypingUsers] = useState({}); // Map of userID -> isTyping
     const [showReactionPicker, setShowReactionPicker] = useState(null); // messageId of message to react to
     const [replyingTo, setReplyingTo] = useState(null); // Message being replied to
+    const [isRecordingVoice, setIsRecordingVoice] = useState(false);
     const messagesEndRef = useRef(null);
     const menuRef = useRef(null);
     const searchTimeoutRef = useRef(null);
@@ -471,6 +474,50 @@ export default function Messages() {
             } else {
                 alert('Failed to send message. Please try again.');
             }
+        }
+    };
+
+    const handleSendVoice = async (audioBlob, duration) => {
+        if (!selectedChat) return;
+
+        try {
+            // Convert blob to base64 for now (MinIO integration will handle actual file upload)
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = async () => {
+                const base64Audio = reader.result;
+
+                // For now, send metadata. TODO: Upload to MinIO
+                const messageData = {
+                    recipientId: selectedChat.user.id,
+                    content: `🎤 Voice message (${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')})`,
+                    contentType: 'voice',
+                    encrypted: false,
+                    messageType: 'one_to_one'
+                };
+
+                const resp = await api.post('/messages/send', messageData);
+                const message = resp.data;
+
+                // Add to local messages
+                setMessages(prev => [...prev, {
+                    id: message.id,
+                    sender_id: user?.id,
+                    recipient_id: selectedChat.user.id,
+                    content: message.content,
+                    content_type: 'voice',
+                    created_at: new Date(),
+                    encrypted: false,
+                    status: 'sent'
+                }]);
+
+                setIsRecordingVoice(false);
+                loadConversations();
+            };
+        } catch (error) {
+            console.error('Failed to send voice message:', error);
+            alert('Failed to send voice message');
+            setIsRecordingVoice(false);
         }
     };
 
@@ -1016,7 +1063,14 @@ export default function Messages() {
                                                         </div>
                                                     </div>
                                                 )}
-                                                <p className="break-words text-[14.2px] leading-[19px]" translate="no">{message.content}</p>
+
+                                                {/* Voice message audio player */}
+                                                {message.content_type === 'voice' || message.contentType === 'voice' ? (
+                                                    <AudioPlayer audioUrl={message.audio_url || '#'} duration={60} />
+                                                ) : (
+                                                    <p className="break-words text-[14.2px] leading-[19px]" translate="no">{message.content}</p>
+                                                )}
+
                                                 <div className="flex items-center justify-end gap-1 mt-1">
                                                     <span className="text-[11px] text-[#8696a0]">
                                                         {formatMessageTime(message.created_at)}
@@ -1116,8 +1170,16 @@ export default function Messages() {
                         </div>
 
                         {/* Message Input */}
-                        <div className="px-4 py-2.5 bg-[#202c33]">
-                            <form onSubmit={handleSendMessage} className="flex items-end gap-2">
+                        {isRecordingVoice ? (
+                            <div className="px-4 py-2.5">
+                                <VoiceRecorder 
+                                    onSend={handleSendVoice}
+                                    onCancel={() => setIsRecordingVoice(false)}
+                                />
+                            </div>
+                        ) : (
+                            <div className="px-4 py-2.5 bg-[#202c33]">
+                                <form onSubmit={handleSendMessage} className="flex items-end gap-2">
                                 <div className="flex items-center gap-1">
                                     <button
                                         type="button"
@@ -1217,13 +1279,16 @@ export default function Messages() {
                                 ) : (
                                     <button
                                         type="button"
+                                        onClick={() => setIsRecordingVoice(true)}
                                         className="p-3 text-[#8696a0] hover:bg-[#2a3942] rounded-full transition-colors"
+                                        title="Record voice message"
                                     >
                                         <Mic className="w-5 h-5" />
                                     </button>
                                 )}
                             </form>
                         </div>
+                        )}
                     </>
                 ) : (
                     <div className="flex-1 flex items-center justify-center bg-[#0b141a]" style={{
