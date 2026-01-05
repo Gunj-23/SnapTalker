@@ -107,7 +107,11 @@ export default function VideoMeeting() {
 
     const connectToSignalingServer = () => {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.hostname}:8080/api/v1/calls/signal`;
+        let host = `${window.location.hostname}:8080`;
+        if (window.location.hostname === 'snaptalker.vercel.app') {
+            host = 'snaptalker-backend.onrender.com';
+        }
+        const wsUrl = `${protocol}//${host}/api/v1/calls/signal`;
 
         wsRef.current = new WebSocket(wsUrl);
 
@@ -516,10 +520,10 @@ export default function VideoMeeting() {
                 {/* Video Grid */}
                 <div className="flex-1 p-4">
                     <div className={`grid gap-4 h-full ${participants.length === 1 ? 'grid-cols-1' :
-                            participants.length === 2 ? 'grid-cols-2' :
-                                participants.length <= 4 ? 'grid-cols-2 grid-rows-2' :
-                                    participants.length <= 6 ? 'grid-cols-3 grid-rows-2' :
-                                        'grid-cols-4 grid-rows-2'
+                        participants.length === 2 ? 'grid-cols-2' :
+                            participants.length <= 4 ? 'grid-cols-2 grid-rows-2' :
+                                participants.length <= 6 ? 'grid-cols-3 grid-rows-2' :
+                                    'grid-cols-4 grid-rows-2'
                         }`}>
                         {participants.map(participant => (
                             <VideoTile key={participant.id} participant={participant} />
