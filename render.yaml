@@ -11,7 +11,7 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        value: postgresql://postgres:GDPatel$2310@db.nplapwfkybqhuezhlmxw.supabase.co:5432/postgres
+        value: postgresql://postgres:GDPatel$2310@db.nplapwfkybqhuezhlmxw.supabase.co:5432/postgres?sslmode=require&connect_timeout=10
       - key: JWT_SECRET
         value: snaptalker-super-secret-jwt-key-for-production-2026-min-256-bits
       - key: ENVIRONMENT

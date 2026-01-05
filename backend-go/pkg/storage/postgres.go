@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -19,20 +20,46 @@ type PostgresDB struct {
 func NewPostgresDB(connectionString string) (*PostgresDB, error) {
 	// Convert Prisma Accelerate URL to standard PostgreSQL URL
 	connStr := parsePrismaURL(connectionString)
+	
+	// Add connection parameters if not already present
+	if !strings.Contains(connStr, "sslmode=") {
+		if strings.Contains(connStr, "?") {
+			connStr += "&sslmode=require"
+		} else {
+			connStr += "?sslmode=require"
+		}
+	}
+	
+	// Add timeout if not present
+	if !strings.Contains(connStr, "connect_timeout=") {
+		if strings.Contains(connStr, "?") {
+			connStr += "&connect_timeout=10"
+		} else {
+			connStr += "?connect_timeout=10"
+		}
+	}
 
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	// Test connection
-	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+	// Test connection with retries
+	maxRetries := 3
+	for i := 0; i < maxRetries; i++ {
+		if err := db.Ping(); err == nil {
+			break
+		} else if i == maxRetries-1 {
+			return nil, fmt.Errorf("failed to ping database after %d retries: %w", maxRetries, err)
+		}
+		// Wait before retry
+		time.Sleep(time.Second * time.Duration(i+1))
 	}
 
 	// Set connection pool settings
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(time.Hour)
 
 	return &PostgresDB{db}, nil
 }
