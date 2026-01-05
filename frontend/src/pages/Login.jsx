@@ -25,92 +25,110 @@ export default function Login() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-            <div className="card-india max-w-md w-full p-8">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#0d1418] via-[#1a2730] to-[#0d1418]">
+            <div className="max-w-md w-full">
+                {/* Logo and Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-saffron to-green-india rounded-full mb-4">
-                        <Sparkles className="w-8 h-8 text-white" />
+                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-[#00a884] to-[#008069] rounded-3xl mb-4 shadow-2xl shadow-[#00a884]/30 animate-pulse">
+                        <Sparkles className="w-10 h-10 text-white" />
                     </div>
-                    <h1 className="text-4xl font-bold text-gradient-india mb-2">SnapTalker</h1>
-                    <p className="text-gray-600 flex items-center justify-center gap-2">
-                        भारत के साथ जुड़ें
-                        <Globe className="w-4 h-4 text-saffron" />
+                    <h1 className="text-5xl font-bold bg-gradient-to-r from-[#00a884] to-[#25d366] bg-clip-text text-transparent mb-2">
+                        SnapTalker
+                    </h1>
+                    <p className="text-[#8696a0] flex items-center justify-center gap-2 text-lg">
+                        Secure. Fast. Private.
+                        <Globe className="w-5 h-5 text-[#00a884]" />
                     </p>
                 </div>
 
-                {error && (
-                    <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded">
-                        <p className="text-red-700">{error}</p>
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            फ़ोन नंबर
-                        </label>
-                        <div className="relative">
-                            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="tel"
-                                value={credentials.phone}
-                                onChange={(e) => setCredentials({ ...credentials, phone: e.target.value })}
-                                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-saffron focus:ring-2 focus:ring-saffron/20 outline-none transition-all"
-                                placeholder="+91 1234567890"
-                                required
-                            />
+                {/* Login Card */}
+                <div className="bg-[#1f2c33] rounded-3xl shadow-2xl p-8 border border-[#2a3942]">
+                    {error && (
+                        <div className="bg-[#7c2d12]/20 border-l-4 border-[#ef4444] p-4 mb-6 rounded-lg">
+                            <p className="text-[#fca5a5] text-sm">{error}</p>
                         </div>
-                    </div>
+                    )}
 
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            पासवर्ड
-                        </label>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="password"
-                                value={credentials.password}
-                                onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
-                                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-saffron focus:ring-2 focus:ring-saffron/20 outline-none transition-all"
-                                placeholder="अपना पासवर्ड दर्ज करें"
-                                required
-                            />
+                    <form onSubmit={handleSubmit} className="space-y-5">
+                        <div>
+                            <label className="block text-sm font-medium text-[#e9edef] mb-2">
+                                Phone Number
+                            </label>
+                            <div className="relative group">
+                                <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#8696a0] w-5 h-5 transition-colors group-focus-within:text-[#00a884]" />
+                                <input
+                                    type="tel"
+                                    value={credentials.phone}
+                                    onChange={(e) => setCredentials({ ...credentials, phone: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3.5 bg-[#2a3942] text-[#e9edef] border-2 border-transparent rounded-xl focus:border-[#00a884] focus:bg-[#111b21] outline-none transition-all placeholder-[#8696a0]"
+                                    placeholder="+91 1234567890"
+                                    required
+                                />
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="flex items-center justify-between">
-                        <div></div>
+                        <div>
+                            <label className="block text-sm font-medium text-[#e9edef] mb-2">
+                                Password
+                            </label>
+                            <div className="relative group">
+                                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#8696a0] w-5 h-5 transition-colors group-focus-within:text-[#00a884]" />
+                                <input
+                                    type="password"
+                                    value={credentials.password}
+                                    onChange={(e) => setCredentials({ ...credentials, password: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3.5 bg-[#2a3942] text-[#e9edef] border-2 border-transparent rounded-xl focus:border-[#00a884] focus:bg-[#111b21] outline-none transition-all placeholder-[#8696a0]"
+                                    placeholder="Enter your password"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-end">
+                            <button
+                                type="button"
+                                onClick={() => navigate('/forgot-password')}
+                                className="text-sm text-[#00a884] hover:text-[#06cf9c] font-medium transition-colors"
+                            >
+                                Forgot password?
+                            </button>
+                        </div>
+
                         <button
-                            type="button"
-                            onClick={() => navigate('/forgot-password')}
-                            className="text-sm text-saffron hover:text-orange-india font-semibold transition-colors"
+                            type="submit"
+                            disabled={loading}
+                            className="w-full bg-gradient-to-r from-[#00a884] to-[#25d366] text-white font-semibold py-3.5 px-6 rounded-xl hover:shadow-xl hover:shadow-[#00a884]/20 transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
                         >
-                            पासवर्ड भूल गए?
+                            {loading ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    Logging in...
+                                </>
+                            ) : (
+                                <>
+                                    <LogIn className="w-5 h-5" />
+                                    Log In
+                                </>
+                            )}
                         </button>
+                    </form>
+
+                    <div className="mt-6 text-center">
+                        <p className="text-[#8696a0]">
+                            New to SnapTalker?{' '}
+                            <Link to="/register" className="text-[#00a884] hover:text-[#06cf9c] font-semibold inline-flex items-center gap-1 transition-colors">
+                                Create account
+                                <UserPlus className="w-4 h-4" />
+                            </Link>
+                        </p>
                     </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-gradient-to-r from-saffron to-green-india text-white font-bold py-3 px-6 rounded-xl hover:shadow-lg transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? 'लॉग इन हो रहा है...' : 'लॉग इन करें'}
-                    </button>
-                </form>
-
-                <div className="mt-6 text-center">
-                    <p className="text-gray-600">
-                        नया यूजर है?{' '}
-                        <Link to="/register" className="text-saffron hover:text-orange-india font-semibold">
-                            साइन अप करें <UserPlus className="inline w-4 h-4" />
-                        </Link>
-                    </p>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                    <p className="text-xs text-center text-gray-500">
-                        Made with love in India
+                {/* Footer */}
+                <div className="mt-8 text-center">
+                    <p className="text-xs text-[#667781] flex items-center justify-center gap-2">
+                        <Lock className="w-3 h-3" />
+                        End-to-end encrypted
                     </p>
                 </div>
             </div>

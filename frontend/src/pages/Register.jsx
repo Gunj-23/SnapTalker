@@ -65,137 +65,147 @@ export default function Register() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-            <div className="card-india max-w-md w-full p-8">
+        <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-[#0d1418] via-[#1a2730] to-[#0d1418]">
+            <div className="max-w-md w-full">
+                {/* Logo and Header */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-saffron to-green-india rounded-full mb-4">
-                        <Sparkles className="w-8 h-8 text-white" />
+                    <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-[#00a884] to-[#008069] rounded-3xl mb-4 shadow-2xl shadow-[#00a884]/30 animate-pulse">
+                        <UserPlus className="w-10 h-10 text-white" />
                     </div>
-                    <h1 className="text-4xl font-bold text-gradient-india mb-2">SnapTalker</h1>
-                    <p className="text-gray-600 flex items-center justify-center gap-2">
-                        अपना नया अकाउंट बनाएं
-                        <Globe className="w-4 h-4 text-saffron" />
+                    <h1 className="text-5xl font-bold bg-gradient-to-r from-[#00a884] to-[#25d366] bg-clip-text text-transparent mb-2">
+                        Join SnapTalker
+                    </h1>
+                    <p className="text-[#8696a0] flex items-center justify-center gap-2 text-lg">
+                        Create your secure account
+                        <CheckCircle className="w-5 h-5 text-[#00a884]" />
                     </p>
                 </div>
 
-                {!window.isSecureContext && (
-                    <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4 mb-6 rounded">
-                        <div className="flex items-start">
-                            <div className="flex-shrink-0">
-                                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
+                {/* Register Card */}
+                <div className="bg-[#1f2c33] rounded-3xl shadow-2xl p-8 border border-[#2a3942]">
+                    {!window.isSecureContext && (
+                        <div className="bg-[#7c2d12]/20 border-l-4 border-[#f59e0b] p-4 mb-6 rounded-lg">
+                            <p className="text-[#fcd34d] text-xs">
+                                ⚠️ Non-secure connection. For full E2E encryption, use HTTPS.
+                            </p>
+                        </div>
+                    )}
+
+                    {error && (
+                        <div className="bg-[#7c2d12]/20 border-l-4 border-[#ef4444] p-4 mb-6 rounded-lg">
+                            <p className="text-[#fca5a5] text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-[#e9edef] mb-2">
+                                Username
+                            </label>
+                            <div className="relative group">
+                                <User className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#8696a0] w-5 h-5 transition-colors group-focus-within:text-[#00a884]" />
+                                <input
+                                    type="text"
+                                    value={formData.username}
+                                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3.5 bg-[#2a3942] text-[#e9edef] border-2 border-transparent rounded-xl focus:border-[#00a884] focus:bg-[#111b21] outline-none transition-all placeholder-[#8696a0]"
+                                    placeholder="Choose a username"
+                                    required
+                                    minLength={3}
+                                    autoComplete="username"
+                                />
                             </div>
-                            <div className="ml-3">
-                                <p className="text-sm text-yellow-700">
-                                    ⚠️ Non-secure connection detected. E2E encryption disabled. For full security, access via localhost or HTTPS.
-                                </p>
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-[#e9edef] mb-2">
+                                Phone Number
+                            </label>
+                            <div className="relative group">
+                                <Phone className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#8696a0] w-5 h-5 transition-colors group-focus-within:text-[#00a884]" />
+                                <input
+                                    type="tel"
+                                    value={formData.phone}
+                                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3.5 bg-[#2a3942] text-[#e9edef] border-2 border-transparent rounded-xl focus:border-[#00a884] focus:bg-[#111b21] outline-none transition-all placeholder-[#8696a0]"
+                                    placeholder="+91 1234567890"
+                                    required
+                                    autoComplete="tel"
+                                />
                             </div>
                         </div>
-                    </div>
-                )}
 
-                {error && (
-                    <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-6 rounded">
-                        <p className="text-red-700">{error}</p>
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            यूजरनेम
-                        </label>
-                        <div className="relative">
-                            <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="text"
-                                value={formData.username}
-                                onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-saffron focus:ring-2 focus:ring-saffron/20 outline-none transition-all"
-                                placeholder="अपना यूजरनेम दर्ज करें"
-                                required
-                                minLength={3}
-                                autoComplete="username"
-                            />
+                        <div>
+                            <label className="block text-sm font-medium text-[#e9edef] mb-2">
+                                Email
+                            </label>
+                            <div className="relative group">
+                                <Mail className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#8696a0] w-5 h-5 transition-colors group-focus-within:text-[#00a884]" />
+                                <input
+                                    type="email"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3.5 bg-[#2a3942] text-[#e9edef] border-2 border-transparent rounded-xl focus:border-[#00a884] focus:bg-[#111b21] outline-none transition-all placeholder-[#8696a0]"
+                                    placeholder="your.email@example.com"
+                                    required
+                                    autoComplete="email"
+                                />
+                            </div>
                         </div>
-                    </div>
 
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            फ़ोन नंबर
-                        </label>
-                        <div className="relative">
-                            <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="tel"
-                                value={formData.phone}
-                                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-saffron focus:ring-2 focus:ring-saffron/20 outline-none transition-all"
-                                placeholder="+91 1234567890"
-                                required
-                                autoComplete="tel"
-                            />
+                        <div>
+                            <label className="block text-sm font-medium text-[#e9edef] mb-2">
+                                Password
+                            </label>
+                            <div className="relative group">
+                                <Lock className="absolute left-4 top-1/2 transform -translate-y-1/2 text-[#8696a0] w-5 h-5 transition-colors group-focus-within:text-[#00a884]" />
+                                <input
+                                    type="password"
+                                    value={formData.password}
+                                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                    className="w-full pl-12 pr-4 py-3.5 bg-[#2a3942] text-[#e9edef] border-2 border-transparent rounded-xl focus:border-[#00a884] focus:bg-[#111b21] outline-none transition-all placeholder-[#8696a0]"
+                                    placeholder="Create a strong password"
+                                    required
+                                    minLength={8}
+                                />
+                            </div>
+                            <p className="text-xs text-[#667781] mt-2">Must be at least 8 characters long</p>
                         </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="w-full bg-gradient-to-r from-[#00a884] to-[#25d366] text-white font-semibold py-3.5 px-6 rounded-xl hover:shadow-xl hover:shadow-[#00a884]/20 transform hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2 mt-6"
+                        >
+                            {loading ? (
+                                <>
+                                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    Creating account...
+                                </>
+                            ) : (
+                                <>
+                                    <UserPlus className="w-5 h-5" />
+                                    Create Account
+                                </>
+                            )}
+                        </button>
+                    </form>
+
+                    <div className="mt-6 text-center">
+                        <p className="text-[#8696a0]">
+                            Already have an account?{' '}
+                            <Link to="/login" className="text-[#00a884] hover:text-[#06cf9c] font-semibold transition-colors">
+                                Log in
+                            </Link>
+                        </p>
                     </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            ईमेल
-                        </label>
-                        <div className="relative">
-                            <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="email"
-                                value={formData.email}
-                                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-saffron focus:ring-2 focus:ring-saffron/20 outline-none transition-all"
-                                placeholder="your.email@example.com"
-                                required
-                                autoComplete="email"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            पासवर्ड
-                        </label>
-                        <div className="relative">
-                            <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                            <input
-                                type="password"
-                                value={formData.password}
-                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                                className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:border-saffron focus:ring-2 focus:ring-saffron/20 outline-none transition-all"
-                                placeholder="मजबूत पासवर्ड बनाएं"
-                                required
-                                minLength={8}
-                            />
-                        </div>
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-gradient-to-r from-saffron to-green-india text-white font-bold py-3 px-6 rounded-xl hover:shadow-lg transform hover:scale-105 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {loading ? 'रजिस्टर हो रहा है...' : 'साइन अप करें'}
-                    </button>
-                </form>
-
-                <div className="mt-6 text-center">
-                    <p className="text-gray-600">
-                        पहले से अकाउंट है?{' '}
-                        <Link to="/login" className="text-saffron hover:text-orange-india font-semibold">
-                            लॉग इन करें
-                        </Link>
-                    </p>
                 </div>
 
-                <div className="mt-8 pt-6 border-t border-gray-200">
-                    <p className="text-xs text-center text-gray-500">
-                        Made with love in India | भारत में बनाया गया
+                {/* Footer */}
+                <div className="mt-8 text-center">
+                    <p className="text-xs text-[#667781] flex items-center justify-center gap-2">
+                        <Lock className="w-3 h-3" />
+                        Your data is encrypted end-to-end
                     </p>
                 </div>
             </div>
