@@ -3,13 +3,14 @@ import {
     MessageCircle, Send, Search, MoreVertical, Phone, Video,
     Image as ImageIcon, Lock, Check, CheckCheck, Shield,
     AlertTriangle, Clock, Menu, Settings, User, LogOut, Smile,
-    Paperclip, Mic, X, ChevronDown, Archive, Volume2, UserPlus, Share2
+    Paperclip, Mic, X, ChevronDown, Archive, Volume2, UserPlus, Share2, Loader2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useEncryption } from '../context/EncryptionContext';
 import { useNavigate } from 'react-router-dom';
 import { chatAPI } from '../services/api';
 import api from '../services/api';
+import wsService from '../services/websocket';
 
 export default function Messages() {
     const { user, logout } = useAuth();
@@ -36,13 +37,38 @@ export default function Messages() {
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
     const [showSearchResults, setShowSearchResults] = useState(false);
+    const [selectedFile, setSelectedFile] = useState(null);
+    const [uploadingFile, setUploadingFile] = useState(false);
     const messagesEndRef = useRef(null);
     const menuRef = useRef(null);
     const searchTimeoutRef = useRef(null);
+    const fileInputRef = useRef(null);
 
     // Load conversations on component mount
     useEffect(() => {
         loadConversations();
+
+        // Setup WebSocket connection
+        const token = localStorage.getItem('token');
+        if (token) {
+            wsService.connect(token);
+            
+            wsService.on('message', (data) => {
+                // Handle incoming message
+                if (data.type === 'new_message') {
+                    setMessages(prev => [...prev, {
+                        id: data.id,
+                        sender_id: data.senderId,
+                        recipient_id: data.recipientId,
+                        content: data.content,
+                        created_at: data.timestamp,
+                        encrypted: data.encrypted,
+                        status: 'delivered'
+                    }]);
+                    loadConversations(); // Refresh conversation list
+                }
+            });
+        }
 
         // Refresh conversations every 5 seconds
         const conversationsInterval = setInterval(loadConversations, 5000);
@@ -56,6 +82,7 @@ export default function Messages() {
         return () => {
             clearInterval(conversationsInterval);
             clearInterval(heartbeatInterval);
+            wsService.disconnect();
         };
     }, []);
 
@@ -277,7 +304,7 @@ export default function Messages() {
 
     const handleSendMessage = async (e) => {
         e.preventDefault();
-        if (!newMessage.trim() || !selectedChat) return;
+        if ((!newMessage.trim() && !selectedFile) || !selectedChat) return;
 
         const messageContent = newMessage;
         setNewMessage('');
@@ -286,7 +313,7 @@ export default function Messages() {
         const optimisticMessage = {
             id: Date.now(),
             sender_id: user?.id,
-            content: messageContent,
+            content: selectedFile ? `📎 ${selectedFile.name}` : messageContent,
             created_at: new Date(),
             encrypted: false,
             status: 'sending'
@@ -297,11 +324,18 @@ export default function Messages() {
             // Prepare message data
             const messageData = {
                 recipientId: selectedChat.user.id,
-                content: messageContent,
-                contentType: 'text',
+                content: messageContent || `File: ${selectedFile?.name}`,
+                contentType: selectedFile ? 'file' : 'text',
                 encrypted: false,
                 messageType: 'one_to_one'
             };
+
+            // Handle file upload if present
+            if (selectedFile) {
+                setUploadingFile(true);
+                // TODO: Implement file upload to backend
+                // For now just send filename
+            }
 
             // Send to backend API
             const resp = await api.post('/messages/send', messageData);
@@ -319,6 +353,10 @@ export default function Messages() {
                     : msg
             ));
 
+            // Clear file selection
+            setSelectedFile(null);
+            setUploadingFile(false);
+
             // Reload conversations to get updated lastMessage from server
             loadConversations();
         } catch (error) {
@@ -330,6 +368,8 @@ export default function Messages() {
                     ? { ...msg, status: 'failed' }
                     : msg
             ));
+
+            setUploadingFile(false);
 
             // Log detailed error for debugging
             if (error.response?.data) {
@@ -853,12 +893,33 @@ export default function Messages() {
                                     </button>
                                     <button
                                         type="button"
+                                        onClick={() => fileInputRef.current?.click()}
                                         className="p-2 text-[#8696a0] hover:bg-[#2a3942] rounded-full transition-colors"
+                                        title="Attach file"
                                     >
                                         <Paperclip className="w-6 h-6" />
                                     </button>
+                                    <input
+                                        ref={fileInputRef}
+                                        type="file"
+                                        className="hidden"
+                                        onChange={(e) => setSelectedFile(e.target.files[0])}
+                                        accept="image/*,video/*,.pdf,.doc,.docx"
+                                    />
                                 </div>
                                 <div className="flex-1 relative">
+                                    {selectedFile && (
+                                        <div className="absolute bottom-full mb-2 left-0 bg-[#233138] rounded-lg p-3 shadow-2xl flex items-center gap-2">
+                                            <Paperclip className="w-4 h-4 text-[#00a884]" />
+                                            <span className="text-[#e9edef] text-sm">{selectedFile.name}</span>
+                                            <button
+                                                onClick={() => setSelectedFile(null)}
+                                                className="ml-2 text-[#8696a0] hover:text-[#e9edef]"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
                                     {showEmojiPicker && (
                                         <div className="absolute bottom-full mb-2 left-0 bg-[#233138] rounded-xl p-3 shadow-2xl">
                                             <div className="grid grid-cols-8 gap-2">
@@ -882,16 +943,18 @@ export default function Messages() {
                                         type="text"
                                         value={newMessage}
                                         onChange={(e) => setNewMessage(e.target.value)}
-                                        placeholder="Type a message"
+                                        placeholder={selectedFile ? `Send ${selectedFile.name}` : "Type a message"}
                                         className="w-full px-4 py-2.5 bg-[#2a3942] text-[#e9edef] placeholder-[#8696a0] rounded-lg focus:outline-none text-[15px]"
+                                        disabled={uploadingFile}
                                     />
                                 </div>
-                                {newMessage.trim() ? (
+                                {newMessage.trim() || selectedFile ? (
                                     <button
                                         type="submit"
-                                        className="p-3 bg-[#00a884] text-[#111b21] rounded-full hover:bg-[#06cf9c] transition-all"
+                                        disabled={uploadingFile}
+                                        className="p-3 bg-[#00a884] text-[#111b21] rounded-full hover:bg-[#06cf9c] transition-all disabled:opacity-50"
                                     >
-                                        <Send className="w-5 h-5" />
+                                        {uploadingFile ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
                                     </button>
                                 ) : (
                                     <button
