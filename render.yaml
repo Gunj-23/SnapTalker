@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: snaptalker-backend
+    runtime: go
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: backend-go
+    buildCommand: go build -o server ./cmd/server
+    startCommand: ./server
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: prisma+postgres://accelerate.prisma-data.net/?api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqd3RfaWQiOjEsInNlY3VyZV9rZXkiOiJza19qdXFNbHJsZ1BQVWs1dHdrYmtkOHQiLCJhcGlfa2V5IjoiMDFLRTZCNjJYR1JZQ0dSU0gwWFAwQlM1R0EiLCJ0ZW5hbnRfaWQiOiJkYTBmZTRiNDlhNTVhYThiMzYwOGYxYjBkZGNhMjZlZjIyYWY3MzczZjgyZmE1MDY2NjYwOTBiMTBhODg4NWUyIiwiaW50ZXJuYWxfc2VjcmV0IjoiMjRjOTUzOGMtMTA2OS00ZDJjLWJiMzgtYjg2ZjUzMmU3NDIyIn0.aUpYXNeQDqAx9-yhdmxtjOpufQTpQ0h92ZgaPEYsk4U
+      - key: JWT_SECRET
+        value: snaptalker-super-secret-jwt-key-for-production-2026-min-256-bits
+      - key: ENVIRONMENT
+        value: production
+      - key: PORT
+        value: 8080
+    autoDeploy: true
