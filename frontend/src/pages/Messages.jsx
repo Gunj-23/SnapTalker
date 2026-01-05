@@ -40,11 +40,13 @@ export default function Messages() {
     const [selectedFile, setSelectedFile] = useState(null);
     const [uploadingFile, setUploadingFile] = useState(false);
     const [typingUsers, setTypingUsers] = useState({}); // Map of userID -> isTyping
+    const [showReactionPicker, setShowReactionPicker] = useState(null); // messageId of message to react to
     const messagesEndRef = useRef(null);
     const menuRef = useRef(null);
     const searchTimeoutRef = useRef(null);
     const fileInputRef = useRef(null);
     const typingTimeoutRef = useRef(null);
+    const reactionPickerRef = useRef(null);
 
     // Load conversations on component mount
     useEffect(() => {
@@ -103,6 +105,33 @@ export default function Messages() {
                     setTypingUsers(prev => ({
                         ...prev,
                         [data.userId]: data.isTyping
+                    }));
+                }
+                // Handle reaction updates
+                else if (data.type === 'reaction') {
+                    setMessages(prev => prev.map(msg => {
+                        if (msg.id === data.messageId) {
+                            const reactions = msg.reactions || [];
+                            if (data.action === 'add') {
+                                // Remove existing reaction from this user
+                                const filtered = reactions.filter(r => r.userId !== data.userId);
+                                // Add new reaction
+                                return {
+                                    ...msg,
+                                    reactions: [...filtered, {
+                                        userId: data.userId,
+                                        username: data.username,
+                                        emoji: data.emoji
+                                    }]
+                                };
+                            } else if (data.action === 'remove') {
+                                return {
+                                    ...msg,
+                                    reactions: reactions.filter(r => r.userId !== data.userId)
+                                };
+                            }
+                        }
+                        return msg;
                     }));
                 }
             });
@@ -480,6 +509,56 @@ export default function Messages() {
                     ? { ...msg, status: 'failed' }
                     : msg
             ));
+        }
+    };
+
+    // Reaction handling
+    const handleAddReaction = async (messageId, emoji) => {
+        try {
+            await api.post('/messages/reactions', {
+                messageId,
+                emoji
+            });
+
+            // Update local state optimistically
+            setMessages(prev => prev.map(msg => {
+                if (msg.id === messageId) {
+                    const reactions = msg.reactions || [];
+                    const filtered = reactions.filter(r => r.userId !== user?.id);
+                    return {
+                        ...msg,
+                        reactions: [...filtered, {
+                            userId: user?.id,
+                            username: user?.username,
+                            emoji
+                        }]
+                    };
+                }
+                return msg;
+            }));
+
+            setShowReactionPicker(null);
+        } catch (error) {
+            console.error('Failed to add reaction:', error);
+        }
+    };
+
+    const handleRemoveReaction = async (messageId) => {
+        try {
+            await api.delete(`/messages/reactions/${messageId}`);
+
+            // Update local state
+            setMessages(prev => prev.map(msg => {
+                if (msg.id === messageId) {
+                    return {
+                        ...msg,
+                        reactions: (msg.reactions || []).filter(r => r.userId !== user?.id)
+                    };
+                }
+                return msg;
+            }));
+        } catch (error) {
+            console.error('Failed to remove reaction:', error);
         }
     };
 

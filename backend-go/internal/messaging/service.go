@@ -41,17 +41,28 @@ func NewService(db *storage.PostgresDB, redis *storage.RedisClient, minio *stora
 	}
 }
 
+// Reaction represents a message reaction
+type Reaction struct {
+	ID        string    `json:"id"`
+	MessageID string    `json:"messageId"`
+	UserID    string    `json:"userId"`
+	Username  string    `json:"username"`
+	Emoji     string    `json:"emoji"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
 // Message represents an encrypted message
 type Message struct {
-	ID          string    `json:"id"`
-	SenderID    string    `json:"senderId"`
-	RecipientID string    `json:"recipientId"`
-	Content     string    `json:"content"`
-	ContentType string    `json:"contentType"`
-	Encrypted   bool      `json:"encrypted"`
-	Timestamp   time.Time `json:"timestamp"`
-	Status      string    `json:"status"`
-	MessageType string    `json:"messageType"`
+	ID          string     `json:"id"`
+	SenderID    string     `json:"senderId"`
+	RecipientID string     `json:"recipientId"`
+	Content     string     `json:"content"`
+	ContentType string     `json:"contentType"`
+	Encrypted   bool       `json:"encrypted"`
+	Timestamp   time.Time  `json:"timestamp"`
+	Status      string     `json:"status"`
+	MessageType string     `json:"messageType"`
+	Reactions   []Reaction `json:"reactions,omitempty"`
 }
 
 // SendMessageRequest represents a request to send a message
@@ -564,3 +575,163 @@ func (s *Service) updateLastSeen(userID string) {
 		log.Printf("Failed to update last seen for user %s: %v", userID, err)
 	}
 }
+
+// AddReactionRequest represents a request to add a reaction to a message
+type AddReactionRequest struct {
+	MessageID string `json:"messageId" binding:"required"`
+	Emoji     string `json:"emoji" binding:"required"`
+}
+
+// AddReaction adds a reaction to a message
+func (s *Service) AddReaction(c *gin.Context) {
+	userID := c.GetString("userId")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	var req AddReactionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Generate reaction ID
+	reactionID := uuid.New().String()
+
+	// Check if user already reacted to this message
+	var existingID string
+	checkQuery := `SELECT id FROM message_reactions WHERE message_id = $1 AND user_id = $2`
+	err := s.db.QueryRow(checkQuery, req.MessageID, userID).Scan(&existingID)
+
+	if err == nil {
+		// Update existing reaction
+		updateQuery := `UPDATE message_reactions SET emoji = $1 WHERE id = $2`
+		_, err = s.db.Exec(updateQuery, req.Emoji, existingID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update reaction"})
+			return
+		}
+		reactionID = existingID
+	} else {
+		// Insert new reaction
+		insertQuery := `INSERT INTO message_reactions (id, message_id, user_id, emoji, created_at) VALUES ($1, $2, $3, $4, $5)`
+		_, err = s.db.Exec(insertQuery, reactionID, req.MessageID, userID, req.Emoji, time.Now())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add reaction"})
+			return
+		}
+	}
+
+	// Get username for notification
+	var username string
+	s.db.QueryRow(`SELECT username FROM users WHERE id = $1`, userID).Scan(&username)
+
+	// Broadcast reaction to other users via WebSocket
+	s.broadcastReaction(req.MessageID, userID, username, req.Emoji, "add")
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":        reactionID,
+		"messageId": req.MessageID,
+		"emoji":     req.Emoji,
+	})
+}
+
+// RemoveReaction removes a reaction from a message
+func (s *Service) RemoveReaction(c *gin.Context) {
+	userID := c.GetString("userId")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
+
+	messageID := c.Param("messageId")
+	if messageID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "messageId required"})
+		return
+	}
+
+	// Delete reaction
+	deleteQuery := `DELETE FROM message_reactions WHERE message_id = $1 AND user_id = $2`
+	_, err := s.db.Exec(deleteQuery, messageID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove reaction"})
+		return
+	}
+
+	// Get username for notification
+	var username string
+	s.db.QueryRow(`SELECT username FROM users WHERE id = $1`, userID).Scan(&username)
+
+	// Broadcast reaction removal
+	s.broadcastReaction(messageID, userID, username, "", "remove")
+
+	c.JSON(http.StatusOK, gin.H{"message": "reaction removed"})
+}
+
+// GetMessageReactions gets all reactions for a message
+func (s *Service) GetMessageReactions(c *gin.Context) {
+	messageID := c.Param("messageId")
+	if messageID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "messageId required"})
+		return
+	}
+
+	query := `
+		SELECT r.id, r.message_id, r.user_id, u.username, r.emoji, r.created_at
+		FROM message_reactions r
+		JOIN users u ON r.user_id = u.id
+		WHERE r.message_id = $1
+		ORDER BY r.created_at ASC
+	`
+	rows, err := s.db.Query(query, messageID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get reactions"})
+		return
+	}
+	defer rows.Close()
+
+	reactions := []Reaction{}
+	for rows.Next() {
+		var r Reaction
+		err := rows.Scan(&r.ID, &r.MessageID, &r.UserID, &r.Username, &r.Emoji, &r.CreatedAt)
+		if err != nil {
+			continue
+		}
+		reactions = append(reactions, r)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"reactions": reactions})
+}
+
+// broadcastReaction notifies users about reaction changes
+func (s *Service) broadcastReaction(messageID, userID, username, emoji, action string) {
+	// Get message details to find sender and recipient
+	var senderID, recipientID string
+	query := `SELECT sender_id, recipient_id FROM messages WHERE id = $1`
+	s.db.QueryRow(query, messageID).Scan(&senderID, &recipientID)
+
+	notification := map[string]interface{}{
+		"type":      "reaction",
+		"action":    action,
+		"messageId": messageID,
+		"userId":    userID,
+		"username":  username,
+		"emoji":     emoji,
+	}
+
+	// Notify sender if different from reactor
+	if senderID != userID {
+		if conn, ok := s.clients[senderID]; ok {
+			conn.WriteJSON(notification)
+		}
+	}
+
+	// Notify recipient if different from reactor
+	if recipientID != userID {
+		if conn, ok := s.clients[recipientID]; ok {
+			conn.WriteJSON(notification)
+		}
+	}
+}
+
