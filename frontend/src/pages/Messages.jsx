@@ -316,7 +316,7 @@ export default function Messages() {
             loadConversations();
         } catch (error) {
             console.error('Failed to send message:', error);
-            
+
             // Mark message as failed
             setMessages(prev => prev.map(msg =>
                 msg.id === optimisticMessage.id
@@ -360,7 +360,7 @@ export default function Messages() {
         try {
             const resp = await api.post('/messages/send', messageData);
             const message = resp.data;
-            
+
             setMessages(prev => prev.map(msg =>
                 msg.id === optimisticMessage.id
                     ? {
