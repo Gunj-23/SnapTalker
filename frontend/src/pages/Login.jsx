@@ -79,6 +79,17 @@ export default function Login() {
                         </div>
                     </div>
 
+                    <div className="flex items-center justify-between">
+                        <div></div>
+                        <button
+                            type="button"
+                            onClick={() => navigate('/forgot-password')}
+                            className="text-sm text-saffron hover:text-orange-india font-semibold transition-colors"
+                        >
+                            पासवर्ड भूल गए?
+                        </button>
+                    </div>
+
                     <button
                         type="submit"
                         disabled={loading}

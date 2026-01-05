@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
 import Messages from './pages/Messages';
 import Calls from './pages/Calls';
 import Profile from './pages/Profile';
@@ -55,6 +56,14 @@ function App() {
                     element={
                         <PublicRoute>
                             <Register />
+                        </PublicRoute>
+                    }
+                />
+                <Route
+                    path="/forgot-password"
+                    element={
+                        <PublicRoute>
+                            <ForgotPassword />
                         </PublicRoute>
                     }
                 />
