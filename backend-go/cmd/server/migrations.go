@@ -85,6 +85,9 @@ func runMigrations(db *storage.PostgresDB) error {
 	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token) WHERE reset_token IS NOT NULL`)
 
+	// Add last_seen column for online/offline tracking
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP DEFAULT CURRENT_TIMESTAMP`)
+
 	log.Println("Database migrations completed successfully")
 	return nil
 }

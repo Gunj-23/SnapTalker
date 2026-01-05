@@ -39,10 +39,12 @@ export default function Messages() {
     const [showSearchResults, setShowSearchResults] = useState(false);
     const [selectedFile, setSelectedFile] = useState(null);
     const [uploadingFile, setUploadingFile] = useState(false);
+    const [typingUsers, setTypingUsers] = useState({}); // Map of userID -> isTyping
     const messagesEndRef = useRef(null);
     const menuRef = useRef(null);
     const searchTimeoutRef = useRef(null);
     const fileInputRef = useRef(null);
+    const typingTimeoutRef = useRef(null);
 
     // Load conversations on component mount
     useEffect(() => {
@@ -96,61 +98,64 @@ export default function Messages() {
                         setSelectedChat(prev => ({ ...prev, user: { ...prev.user, online: false, lastSeen: data.lastSeen } }));
                     }
                 }
+                // Handle typing indicators
+                else if (data.type === 'typing') {
+                    setTypingUsers(prev => ({
+                        ...prev,
+                        [data.userId]: data.isTyping
+                    }));
+                }
             });
         }
 
         // Refresh conversations every 5 seconds
         const conversationsInterval = setInterval(loadConversations, 5000);
 
-        // Send heartbeat every 15 seconds to maintain online status
-        const heartbeatInterval = setInterval(sendHeartbeat, 15000);
+        // Send heartbeat every 30 seconds via WebSocket to maintain online status
+        const heartbeatInterval = setInterval(() => {
+            wsService.send({ type: 'heartbeat' });
+        }, 30000);
 
         // Send initial heartbeat
-        sendHeartbeat();
+        wsService.send({ type: 'heartbeat' });
 
         return () => {
             clearInterval(conversationsInterval);
             clearInterval(heartbeatInterval);
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
             wsService.disconnect();
         };
     }, []);
 
-    const sendHeartbeat = async () => {
-        try {
-            await api.post('/users/heartbeat');
-        } catch (error) {
-            console.warn('Heartbeat failed:', error);
+    // Handle typing indicator
+    const handleTyping = (text) => {
+        setNewMessage(text);
+        
+        if (!selectedChat) return;
+
+        // Send typing start notification
+        wsService.send({
+            type: 'typing',
+            recipientId: selectedChat.user.id,
+            isTyping: true
+        });
+
+        // Clear existing timeout
+        if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
         }
+
+        // Stop typing after 2 seconds of no input
+        typingTimeoutRef.current = setTimeout(() => {
+            wsService.send({
+                type: 'typing',
+                recipientId: selectedChat.user.id,
+                isTyping: false
+            });
+        }, 2000);
     };
-
-    // Poll online status for conversations
-    useEffect(() => {
-        if (conversations.length === 0) return;
-
-        const updateOnlineStatus = async () => {
-            try {
-                const userIds = conversations.map(c => c.user.id);
-                const params = new URLSearchParams();
-                userIds.forEach(id => params.append('userIds', id));
-                const resp = await api.get(`/users/online-status?${params.toString()}`);
-                const data = resp.data;
-                setConversations(prev => prev.map(conv => ({
-                    ...conv,
-                    user: {
-                        ...conv.user,
-                        online: data.statuses[conv.user.id] || false
-                    }
-                })));
-            } catch (error) {
-                console.warn('Failed to update online status:', error);
-            }
-        };
-
-        updateOnlineStatus();
-        const statusInterval = setInterval(updateOnlineStatus, 10000);
-
-        return () => clearInterval(statusInterval);
-    }, [conversations.length]);
 
     const loadConversations = async () => {
         try {
@@ -334,6 +339,13 @@ export default function Messages() {
     const handleSendMessage = async (e) => {
         e.preventDefault();
         if ((!newMessage.trim() && !selectedFile) || !selectedChat) return;
+
+        // Stop typing indicator
+        wsService.send({
+            type: 'typing',
+            recipientId: selectedChat.user.id,
+            isTyping: false
+        });
 
         const messageContent = newMessage;
         setNewMessage('');
@@ -817,7 +829,15 @@ export default function Messages() {
                                 <div className="flex-1 min-w-0">
                                     <p className="font-medium text-[#e9edef] truncate text-[15px]" translate="no">{selectedChat.user.name}</p>
                                     <p className="text-xs text-[#8696a0] truncate">
-                                        {isTyping ? 'typing...' : selectedChat.user.online ? 'online' : selectedChat.user.lastSeen ? `last seen ${formatTime(selectedChat.user.lastSeen)}` : 'offline'}
+                                        {typingUsers[selectedChat.user.id] ? (
+                                            <span className="text-[#00a884]">typing...</span>
+                                        ) : selectedChat.user.online ? (
+                                            'online'
+                                        ) : selectedChat.user.lastSeen ? (
+                                            `last seen ${formatTime(selectedChat.user.lastSeen)}`
+                                        ) : (
+                                            'offline'
+                                        )}
                                     </p>
                                 </div>
                             </div>
@@ -984,7 +1004,7 @@ export default function Messages() {
                                     <input
                                         type="text"
                                         value={newMessage}
-                                        onChange={(e) => setNewMessage(e.target.value)}
+                                        onChange={(e) => handleTyping(e.target.value)}
                                         placeholder={selectedFile ? `Send ${selectedFile.name}` : "Type a message"}
                                         className="w-full px-4 py-2.5 bg-[#2a3942] text-[#e9edef] placeholder-[#8696a0] rounded-lg focus:outline-none text-[15px]"
                                         disabled={uploadingFile}

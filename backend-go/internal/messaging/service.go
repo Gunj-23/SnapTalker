@@ -23,19 +23,21 @@ var upgrader = websocket.Upgrader{
 
 // Service handles message routing and delivery
 type Service struct {
-	db      *storage.PostgresDB
-	redis   *storage.RedisClient
-	minio   *storage.MinIOClient
-	clients map[string]*websocket.Conn // userID -> websocket connection
+	db         *storage.PostgresDB
+	redis      *storage.RedisClient
+	minio      *storage.MinIOClient
+	clients    map[string]*websocket.Conn // userID -> websocket connection
+	typingStatus map[string]map[string]bool // userID -> map[recipientID]isTyping
 }
 
 // NewService creates a new messaging service
 func NewService(db *storage.PostgresDB, redis *storage.RedisClient, minio *storage.MinIOClient) *Service {
 	return &Service{
-		db:      db,
-		redis:   redis,
-		minio:   minio,
-		clients: make(map[string]*websocket.Conn),
+		db:           db,
+		redis:        redis,
+		minio:        minio,
+		clients:      make(map[string]*websocket.Conn),
+		typingStatus: make(map[string]map[string]bool),
 	}
 }
 
@@ -382,6 +384,21 @@ func (s *Service) StreamMessages(c *gin.Context) {
 			if messageID, ok := wsMsg["messageId"].(string); ok {
 				s.notifyStatusUpdate(messageID, "read")
 			}
+		case "typing":
+			// Handle typing indicator
+			if recipientID, ok := wsMsg["recipientId"].(string); ok {
+				isTyping := true
+				if val, exists := wsMsg["isTyping"].(bool); exists {
+					isTyping = val
+				}
+				s.handleTypingIndicator(userID, recipientID, isTyping)
+			}
+		case "heartbeat":
+			// Update last seen timestamp
+			s.updateLastSeen(userID)
+			if s.redis != nil {
+				s.redis.Set(c.Request.Context(), fmt.Sprintf("online:%s", userID), "true", 90*time.Second)
+			}
 		case "pong":
 			// Handle ping response
 			continue
@@ -392,7 +409,12 @@ func (s *Service) StreamMessages(c *gin.Context) {
 	if s.redis != nil {
 		s.redis.Delete(c.Request.Context(), fmt.Sprintf("online:%s", userID))
 	}
+	// Update last seen in database
+	s.updateLastSeen(userID)
 	s.broadcastUserStatus(userID, false)
+
+	// Clear typing status
+	delete(s.typingStatus, userID)
 }
 
 // deliverMessage attempts to deliver a message to the recipient if online
@@ -495,7 +517,11 @@ func (s *Service) broadcastUserStatus(userID string, online bool) {
 	}
 
 	if !online {
-		notification["lastSeen"] = time.Now()
+		// Get last seen from database
+		var lastSeen time.Time
+		query := `SELECT last_seen FROM users WHERE id = $1`
+		s.db.QueryRow(query, userID).Scan(&lastSeen)
+		notification["lastSeen"] = lastSeen
 	}
 
 	for rows.Next() {
@@ -508,5 +534,33 @@ func (s *Service) broadcastUserStatus(userID string, online bool) {
 		if conn, ok := s.clients[otherUserID]; ok {
 			conn.WriteJSON(notification)
 		}
+	}
+}
+
+// handleTypingIndicator broadcasts typing status to recipient
+func (s *Service) handleTypingIndicator(userID, recipientID string, isTyping bool) {
+	// Initialize typing status map for user if not exists
+	if s.typingStatus[userID] == nil {
+		s.typingStatus[userID] = make(map[string]bool)
+	}
+	s.typingStatus[userID][recipientID] = isTyping
+
+	// Notify recipient if online
+	if conn, ok := s.clients[recipientID]; ok {
+		notification := map[string]interface{}{
+			"type":      "typing",
+			"userId":    userID,
+			"isTyping":  isTyping,
+		}
+		conn.WriteJSON(notification)
+	}
+}
+
+// updateLastSeen updates user's last seen timestamp in database
+func (s *Service) updateLastSeen(userID string) {
+	query := `UPDATE users SET last_seen = $1 WHERE id = $2`
+	_, err := s.db.Exec(query, time.Now(), userID)
+	if err != nil {
+		log.Printf("Failed to update last seen for user %s: %v", userID, err)
 	}
 }
