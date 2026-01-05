@@ -22,15 +22,15 @@ export default function ForgotPassword() {
 
         try {
             const response = await api.post('/auth/forgot-password', { phone });
-            if (response.data.token) {
-                setSuccess(`रीसेट टोकन भेजा गया: ${response.data.token}`);
+            if (response.data.email) {
+                setSuccess(`रीसेट OTP आपके ईमेल पर भेजा गया: ${response.data.email}`);
                 setStep(2);
             } else {
                 // Security response - don't reveal if user exists
-                setSuccess(response.data.message || 'यदि फोन नंबर पंजीकृत है, तो रीसेट टोकन भेजा जाएगा');
+                setSuccess(response.data.message || 'यदि फोन नंबर पंजीकृत है, तो रीसेट OTP आपके ईमेल पर भेजा जाएगा');
             }
         } catch (err) {
-            setError(err.response?.data?.error || 'टोकन भेजने में विफल');
+            setError(err.response?.data?.error || 'OTP भेजने में विफल');
         } finally {
             setLoading(false);
         }

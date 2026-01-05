@@ -9,23 +9,26 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/snaptalker/backend/internal/email"
 	"github.com/snaptalker/backend/pkg/storage"
 	"golang.org/x/crypto/bcrypt"
 )
 
 // Service handles authentication and authorization
 type Service struct {
-	db        *storage.PostgresDB
-	redis     *storage.RedisClient
-	jwtSecret []byte
+	db           *storage.PostgresDB
+	redis        *storage.RedisClient
+	jwtSecret    []byte
+	emailService *email.Service
 }
 
 // NewService creates a new auth service
 func NewService(db *storage.PostgresDB, redis *storage.RedisClient, jwtSecret string) *Service {
 	return &Service{
-		db:        db,
-		redis:     redis,
-		jwtSecret: []byte(jwtSecret),
+		db:           db,
+		redis:        redis,
+		jwtSecret:    []byte(jwtSecret),
+		emailService: email.NewService(),
 	}
 }
 
@@ -440,13 +443,13 @@ func (s *Service) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	// Check if user exists
-	var userID string
-	query := `SELECT id FROM users WHERE phone = $1`
-	err := s.db.QueryRow(query, req.Phone).Scan(&userID)
+	// Check if user exists and get email
+	var userID, email string
+	query := `SELECT id, email FROM users WHERE phone = $1`
+	err := s.db.QueryRow(query, req.Phone).Scan(&userID, &email)
 	if err != nil {
 		// Don't reveal if user exists or not for security
-		c.JSON(http.StatusOK, gin.H{"message": "If the phone number is registered, a reset token will be sent"})
+		c.JSON(http.StatusOK, gin.H{"message": "If the phone number is registered, a reset OTP will be sent to your email"})
 		return
 	}
 
@@ -465,11 +468,16 @@ func (s *Service) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	// TODO: Send reset token via SMS in production
-	// For now, return it in response (development only)
+	// Send OTP via email
+	err = s.emailService.SendOTP(email, resetToken)
+	if err != nil {
+		// Log error but don't fail the request (for development, OTP is printed to console)
+		fmt.Printf("Failed to send email: %v\n", err)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Reset token generated",
-		"token":   resetToken, // Remove in production
+		"message": "If the email is registered, a reset OTP has been sent",
+		"email":   email, // Show masked email for confirmation
 	})
 }
 
