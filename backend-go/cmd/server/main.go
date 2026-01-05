@@ -99,7 +99,7 @@ func main() {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}
-	
+
 	// Production: Only allow specific origins
 	if config.Environment == "production" {
 		corsConfig.AllowOrigins = []string{
@@ -112,7 +112,7 @@ func main() {
 			return true
 		}
 	}
-	
+
 	router.Use(cors.New(corsConfig))
 
 	// Health check
