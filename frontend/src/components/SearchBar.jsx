@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search as SearchIcon, X, User, Hash, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
 
 export default function SearchBar() {
     const [isOpen, setIsOpen] = useState(false);
@@ -10,20 +11,23 @@ export default function SearchBar() {
     const searchRef = useRef(null);
     const navigate = useNavigate();
 
-    // Mock search results - replace with API call
-    const mockSearch = (searchQuery) => {
+    // Search users via API
+    const searchUsers = async (searchQuery) => {
         if (!searchQuery) {
             return { users: [], posts: [], hashtags: [] };
         }
 
-        return {
-            users: [
-                { id: 1, username: 'rajkumar', full_name: 'राज कुमार', avatar: null },
-                { id: 2, username: 'priya_sharma', full_name: 'प्रिया शर्मा', avatar: null },
-            ],
-            hashtags: ['#india', '#snaptalker', '#trending'],
-            posts: [],
-        };
+        try {
+            const response = await api.get(`/users/search?q=${encodeURIComponent(searchQuery)}`);
+            return {
+                users: response.data.users || [],
+                posts: [],
+                hashtags: [],
+            };
+        } catch (error) {
+            console.error('Search failed:', error);
+            return { users: [], posts: [], hashtags: [] };
+        }
     };
 
     useEffect(() => {
@@ -42,8 +46,8 @@ export default function SearchBar() {
         if (query.trim()) {
             setLoading(true);
             // Debounce search
-            const timer = setTimeout(() => {
-                const searchResults = mockSearch(query);
+            const timer = setTimeout(async () => {
+                const searchResults = await searchUsers(query);
                 setResults(searchResults);
                 setLoading(false);
             }, 300);
@@ -111,11 +115,11 @@ export default function SearchBar() {
                                             className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors"
                                         >
                                             <div className="w-10 h-10 bg-gradient-to-r from-saffron to-green-india rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
-                                                {user.full_name.charAt(0)}
+                                                {user.username.charAt(0).toUpperCase()}
                                             </div>
                                             <div className="text-left">
-                                                <p className="font-semibold text-gray-800">{user.full_name}</p>
-                                                <p className="text-sm text-gray-500">@{user.username}</p>
+                                                <p className="font-semibold text-gray-800">@{user.username}</p>
+                                                <p className="text-sm text-gray-500">{user.phone}</p>
                                             </div>
                                             <User className="w-4 h-4 text-gray-400 ml-auto" />
                                         </button>

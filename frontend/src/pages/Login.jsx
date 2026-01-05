@@ -110,7 +110,7 @@ export default function Login() {
 
                 <div className="mt-8 pt-6 border-t border-gray-200">
                     <p className="text-xs text-center text-gray-500">
-                        Made with love in India | भारत में बनाया गया
+                        Made with love in India
                     </p>
                 </div>
             </div>

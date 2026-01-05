@@ -22,8 +22,13 @@ export default function ForgotPassword() {
 
         try {
             const response = await api.post('/auth/forgot-password', { phone });
-            setSuccess(`रीसेट टोकन भेजा गया: ${response.data.token}`);
-            setStep(2);
+            if (response.data.token) {
+                setSuccess(`रीसेट टोकन भेजा गया: ${response.data.token}`);
+                setStep(2);
+            } else {
+                // Security response - don't reveal if user exists
+                setSuccess(response.data.message || 'यदि फोन नंबर पंजीकृत है, तो रीसेट टोकन भेजा जाएगा');
+            }
         } catch (err) {
             setError(err.response?.data?.error || 'टोकन भेजने में विफल');
         } finally {
