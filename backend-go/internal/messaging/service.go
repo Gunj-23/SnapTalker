@@ -79,18 +79,15 @@ func (s *Service) SendMessage(c *gin.Context) {
 	// Generate message ID
 	messageID := uuid.New().String()
 
-	// Handle media upload if present
-	var mediaURL string
-	if len(req.MediaFile) > 0 {
-		// Upload to MinIO
-		objectName := fmt.Sprintf("media/%s/%s", senderID, messageID)
-		url, err := s.minio.Upload(c.Request.Context(), objectName, req.MediaFile)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload media"})
-			return
-		}
-		mediaURL = url
-	}
+	// TODO: Handle media upload if present (MinIO integration)
+	// if len(req.MediaFile) > 0 {
+	//     objectName := fmt.Sprintf("media/%s/%s", senderID, messageID)
+	//     url, err := s.minio.Upload(c.Request.Context(), objectName, req.MediaFile)
+	//     if err != nil {
+	//         c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to upload media"})
+	//         return
+	//     }
+	// }
 
 	// Store message in database
 	contentType := req.ContentType
@@ -378,7 +375,7 @@ func (s *Service) deliverMessage(msg Message) {
 // sendPendingMessages sends any pending messages to a newly connected user
 func (s *Service) sendPendingMessages(conn *websocket.Conn, userID string) {
 	query := `
-		SELECT id, sender_id, recipient_id, encrypted_content, iv, message_number, timestamp, status, media_url
+		SELECT id, sender_id, recipient_id, content, content_type, encrypted, timestamp, status, message_type
 		FROM messages
 		WHERE recipient_id = $1 AND status = 'sent'
 		ORDER BY timestamp ASC
@@ -391,8 +388,8 @@ func (s *Service) sendPendingMessages(conn *websocket.Conn, userID string) {
 
 	for rows.Next() {
 		var msg Message
-		err := rows.Scan(&msg.ID, &msg.SenderID, &msg.RecipientID, &msg.EncryptedContent,
-			&msg.IV, &msg.MessageNumber, &msg.Timestamp, &msg.Status, &msg.MediaURL)
+		err := rows.Scan(&msg.ID, &msg.SenderID, &msg.RecipientID, &msg.Content,
+			&msg.ContentType, &msg.Encrypted, &msg.Timestamp, &msg.Status, &msg.MessageType)
 		if err != nil {
 			continue
 		}
