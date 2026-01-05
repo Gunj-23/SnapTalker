@@ -112,8 +112,8 @@ func main() {
 				return true
 			}
 			// Allow localhost for development testing
-			if len(origin) > 7 && origin[:7] == "http://" && 
-			   (origin[7:16] == "localhost" || origin[7:14] == "127.0.0") {
+			if len(origin) > 7 && origin[:7] == "http://" &&
+				(origin[7:16] == "localhost" || origin[7:14] == "127.0.0") {
 				return true
 			}
 			return false

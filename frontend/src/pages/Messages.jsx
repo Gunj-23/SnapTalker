@@ -209,35 +209,35 @@ export default function Messages() {
         try {
             const resp = await api.get(`/messages/${selectedChat.user.id}`);
             const data = resp.data;
-                // Transform backend format to frontend format
-                const transformedMessages = (data.messages || []).map(msg => ({
-                    id: msg.id,
-                    sender_id: msg.senderId,
-                    recipient_id: msg.recipientId,
-                    content: msg.encryptedContent, // Display encrypted content as plain for now
-                    created_at: msg.timestamp,
-                    encrypted: false,
-                    status: msg.status
-                })).reverse(); // Reverse to show oldest first
+            // Transform backend format to frontend format
+            const transformedMessages = (data.messages || []).map(msg => ({
+                id: msg.id,
+                sender_id: msg.senderId,
+                recipient_id: msg.recipientId,
+                content: msg.encryptedContent, // Display encrypted content as plain for now
+                created_at: msg.timestamp,
+                encrypted: false,
+                status: msg.status
+            })).reverse(); // Reverse to show oldest first
 
-                setMessages(transformedMessages);
+            setMessages(transformedMessages);
 
-                // Mark unread messages as delivered
-                const unreadMessages = transformedMessages.filter(
-                    msg => msg.sender_id === selectedChat.user.id && msg.status === 'sent'
-                );
+            // Mark unread messages as delivered
+            const unreadMessages = transformedMessages.filter(
+                msg => msg.sender_id === selectedChat.user.id && msg.status === 'sent'
+            );
 
-                for (const msg of unreadMessages) {
-                    updateMessageStatus(msg.id, 'delivered');
-                }
+            for (const msg of unreadMessages) {
+                updateMessageStatus(msg.id, 'delivered');
+            }
 
-                // Cache messages in localStorage
-                try {
-                    const cacheKey = `messages_${selectedChat.user.id}`;
-                    localStorage.setItem(cacheKey, JSON.stringify(transformedMessages));
-                } catch (e) {
-                    console.warn('Failed to cache messages:', e);
-                }
+            // Cache messages in localStorage
+            try {
+                const cacheKey = `messages_${selectedChat.user.id}`;
+                localStorage.setItem(cacheKey, JSON.stringify(transformedMessages));
+            } catch (e) {
+                console.warn('Failed to cache messages:', e);
+            }
         } catch (error) {
             console.error('Failed to load messages:', error);
             // Try to load from cache
@@ -804,10 +804,10 @@ export default function Messages() {
                                     >
                                         <div
                                             className={`max-w-[65%] md:max-w-md px-3 py-2 rounded-lg shadow-sm ${isFailed
-                                                    ? 'bg-[#7c2d12] text-[#e9edef]'
-                                                    : isOwn
-                                                        ? 'bg-[#005c4b] text-[#e9edef]'
-                                                        : 'bg-[#202c33] text-[#e9edef]'
+                                                ? 'bg-[#7c2d12] text-[#e9edef]'
+                                                : isOwn
+                                                    ? 'bg-[#005c4b] text-[#e9edef]'
+                                                    : 'bg-[#202c33] text-[#e9edef]'
                                                 }`}
                                         >
                                             <p className="break-words text-[14.2px] leading-[19px]">{message.content}</p>
