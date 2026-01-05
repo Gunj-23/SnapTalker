@@ -7,9 +7,9 @@ const getApiUrl = () => {
         return import.meta.env.VITE_API_URL;
     }
 
-    // For production on Vercel, use HTTPS with same hostname
-    if (window.location.hostname === 'snaptalker.vercel.app' || window.location.protocol === 'https:') {
-        return `${window.location.protocol}//${window.location.hostname}/api/v1`;
+    // For production on Vercel, use the Render backend
+    if (window.location.hostname === 'snaptalker.vercel.app') {
+        return 'https://snaptalker-backend.onrender.com/api/v1';
     }
 
     // For local development
