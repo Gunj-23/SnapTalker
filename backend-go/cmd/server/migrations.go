@@ -90,6 +90,11 @@ func runMigrations(db *storage.PostgresDB) error {
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp DESC)`)
 	db.Exec(`CREATE INDEX IF NOT EXISTS idx_pre_keys_user_id ON pre_keys(user_id)`)
 
+	// Add password reset columns to users table
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token TEXT`)
+	db.Exec(`ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expiry TIMESTAMP`)
+	db.Exec(`CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token) WHERE reset_token IS NOT NULL`)
+
 	log.Println("Database migrations completed successfully")
 	return nil
 }

@@ -81,7 +81,7 @@ func (s *Service) SignalingWebSocket(c *gin.Context) {
 // ExchangeICECandidates handles ICE candidate exchange
 func (s *Service) ExchangeICECandidates(c *gin.Context) {
 	userID := c.GetString("userId")
-	
+
 	var req struct {
 		To        string                 `json:"to" binding:"required"`
 		CallID    string                 `json:"callId" binding:"required"`
@@ -107,7 +107,7 @@ func (s *Service) ExchangeICECandidates(c *gin.Context) {
 // SendOffer sends a call offer
 func (s *Service) SendOffer(c *gin.Context) {
 	userID := c.GetString("userId")
-	
+
 	var req struct {
 		To     string                 `json:"to" binding:"required"`
 		CallID string                 `json:"callId" binding:"required"`
@@ -131,7 +131,7 @@ func (s *Service) SendOffer(c *gin.Context) {
 	}
 
 	s.routeSignalMessage(msg)
-	
+
 	// Store call info in Redis for tracking
 	callInfo := map[string]string{
 		"caller":   userID,
@@ -150,7 +150,7 @@ func (s *Service) SendOffer(c *gin.Context) {
 // SendAnswer sends a call answer
 func (s *Service) SendAnswer(c *gin.Context) {
 	userID := c.GetString("userId")
-	
+
 	var req struct {
 		To     string                 `json:"to" binding:"required"`
 		CallID string                 `json:"callId" binding:"required"`
@@ -170,7 +170,7 @@ func (s *Service) SendAnswer(c *gin.Context) {
 	}
 
 	s.routeSignalMessage(msg)
-	
+
 	// Update call status in Redis
 	callKey := fmt.Sprintf("call:%s", req.CallID)
 	if s.redis != nil {

@@ -183,7 +183,7 @@ func (s *Service) VerifyOTP(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "OTP verification skipped (development mode)"})
 		return
 	}
-	
+
 	storedOTP, err := s.redis.Get(c.Request.Context(), fmt.Sprintf("otp:%s", req.Phone))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "OTP expired or invalid"})
@@ -261,13 +261,13 @@ func (s *Service) AuthMiddleware() gin.HandlerFunc {
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
 			if userID, ok := claims["userId"].(string); ok {
 				c.Set("userId", userID)
-				
+
 				// Set user context for Row-Level Security
 				if err := s.db.SetUserContext(c.Request.Context(), userID); err != nil {
 					// Log error but don't block request - RLS policies will handle authorization
 					fmt.Printf("Warning: Failed to set RLS user context: %v\n", err)
 				}
-				
+
 				c.Next()
 				return
 			}
@@ -428,6 +428,97 @@ func (s *Service) UpdateOnlineStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "online"})
+}
+
+// ForgotPassword generates a password reset token
+func (s *Service) ForgotPassword(c *gin.Context) {
+	var req struct {
+		Phone string `json:"phone" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if user exists
+	var userID string
+	query := `SELECT id FROM users WHERE phone = $1`
+	err := s.db.QueryRow(query, req.Phone).Scan(&userID)
+	if err != nil {
+		// Don't reveal if user exists or not for security
+		c.JSON(http.StatusOK, gin.H{"message": "If the phone number is registered, a reset token will be sent"})
+		return
+	}
+
+	// Generate reset token (6-digit code)
+	resetToken := s.generateOTP()
+
+	// Store reset token in database with expiry (1 hour)
+	updateQuery := `
+		UPDATE users 
+		SET reset_token = $1, reset_token_expiry = NOW() + INTERVAL '1 hour'
+		WHERE id = $2
+	`
+	_, err = s.db.Exec(updateQuery, resetToken, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate reset token"})
+		return
+	}
+
+	// TODO: Send reset token via SMS in production
+	// For now, return it in response (development only)
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Reset token generated",
+		"token":   resetToken, // Remove in production
+	})
+}
+
+// ResetPassword resets user password with token
+func (s *Service) ResetPassword(c *gin.Context) {
+	var req struct {
+		Phone       string `json:"phone" binding:"required"`
+		ResetToken  string `json:"resetToken" binding:"required"`
+		NewPassword string `json:"newPassword" binding:"required,min=8"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Verify reset token
+	var userID string
+	query := `
+		SELECT id FROM users 
+		WHERE phone = $1 
+		AND reset_token = $2 
+		AND reset_token_expiry > NOW()
+	`
+	err := s.db.QueryRow(query, req.Phone, req.ResetToken).Scan(&userID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or expired reset token"})
+		return
+	}
+
+	// Hash new password
+	passwordHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to hash password"})
+		return
+	}
+
+	// Update password and clear reset token
+	updateQuery := `
+		UPDATE users 
+		SET password_hash = $1, reset_token = NULL, reset_token_expiry = NULL
+		WHERE id = $2
+	`
+	_, err = s.db.Exec(updateQuery, passwordHash, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to reset password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password reset successful"})
 }
 
 // SearchUsers handles user search by username or phone

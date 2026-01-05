@@ -20,7 +20,7 @@ type PostgresDB struct {
 func NewPostgresDB(connectionString string) (*PostgresDB, error) {
 	// Convert Prisma Accelerate URL to standard PostgreSQL URL
 	connStr := parsePrismaURL(connectionString)
-	
+
 	// Add connection parameters if not already present
 	if !strings.Contains(connStr, "sslmode=") {
 		if strings.Contains(connStr, "?") {
@@ -29,7 +29,7 @@ func NewPostgresDB(connectionString string) (*PostgresDB, error) {
 			connStr += "?sslmode=require"
 		}
 	}
-	
+
 	// Add timeout if not present
 	if !strings.Contains(connStr, "connect_timeout=") {
 		if strings.Contains(connStr, "?") {

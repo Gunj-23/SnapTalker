@@ -35,21 +35,21 @@ func NewService(db *storage.PostgresDB, redis *storage.RedisClient) *Service {
 
 // KeyBundle represents a user's public key bundle
 type KeyBundle struct {
-	UserID              string    `json:"userId"`
-	IdentityKey         string    `json:"identityKey"`
-	SignedPreKey        string    `json:"signedPreKey"`
-	SignedPreKeyID      int       `json:"signedPreKeyId"`
-	SignedPreKeySignature string  `json:"signedPreKeySignature"`
-	OneTimePreKey       *string   `json:"oneTimePreKey,omitempty"`
-	OneTimePreKeyID     *int      `json:"oneTimePreKeyId,omitempty"`
-	Timestamp           time.Time `json:"timestamp"`
+	UserID                string    `json:"userId"`
+	IdentityKey           string    `json:"identityKey"`
+	SignedPreKey          string    `json:"signedPreKey"`
+	SignedPreKeyID        int       `json:"signedPreKeyId"`
+	SignedPreKeySignature string    `json:"signedPreKeySignature"`
+	OneTimePreKey         *string   `json:"oneTimePreKey,omitempty"`
+	OneTimePreKeyID       *int      `json:"oneTimePreKeyId,omitempty"`
+	Timestamp             time.Time `json:"timestamp"`
 }
 
 // UploadKeyBundleRequest represents the request to upload a key bundle
 type UploadKeyBundleRequest struct {
-	IdentityKey           string                `json:"identityKey" binding:"required"`
-	SignedPreKey          SignedPreKeyRequest   `json:"signedPreKey" binding:"required"`
-	OneTimePreKeys        []OneTimePreKeyRequest `json:"oneTimePreKeys" binding:"required"`
+	IdentityKey    string                 `json:"identityKey" binding:"required"`
+	SignedPreKey   SignedPreKeyRequest    `json:"signedPreKey" binding:"required"`
+	OneTimePreKeys []OneTimePreKeyRequest `json:"oneTimePreKeys" binding:"required"`
 }
 
 // SignedPreKeyRequest represents a signed pre-key
@@ -104,7 +104,7 @@ func (s *Service) UploadKeyBundle(c *gin.Context) {
 			signed_prekey_signature = EXCLUDED.signed_prekey_signature,
 			updated_at = EXCLUDED.updated_at
 	`
-	_, err = tx.Exec(query, userID, req.IdentityKey, req.SignedPreKey.KeyID, 
+	_, err = tx.Exec(query, userID, req.IdentityKey, req.SignedPreKey.KeyID,
 		req.SignedPreKey.PublicKey, req.SignedPreKey.Signature, time.Now())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update keys"})
@@ -138,7 +138,7 @@ func (s *Service) UploadKeyBundle(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "key bundle uploaded successfully",
+		"message":         "key bundle uploaded successfully",
 		"preKeysUploaded": len(req.OneTimePreKeys),
 	})
 }
@@ -146,7 +146,7 @@ func (s *Service) UploadKeyBundle(c *gin.Context) {
 // GetKeyBundle retrieves a user's key bundle
 func (s *Service) GetKeyBundle(c *gin.Context) {
 	requestingUserID := c.GetString("userId") // User requesting the bundle
-	targetUserID := c.Param("userId")          // User whose bundle is requested
+	targetUserID := c.Param("userId")         // User whose bundle is requested
 
 	if targetUserID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "userId parameter required"})

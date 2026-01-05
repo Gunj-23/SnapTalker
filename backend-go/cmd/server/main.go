@@ -134,6 +134,8 @@ func main() {
 			authGroup.POST("/login", authService.Login)
 			authGroup.POST("/verify", authService.VerifyOTP)
 			authGroup.POST("/refresh", authService.RefreshToken)
+			authGroup.POST("/forgot-password", authService.ForgotPassword)
+			authGroup.POST("/reset-password", authService.ResetPassword)
 		}
 
 		// Protected routes (require authentication)
