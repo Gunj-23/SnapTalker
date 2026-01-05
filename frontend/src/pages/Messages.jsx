@@ -67,6 +67,35 @@ export default function Messages() {
                     }]);
                     loadConversations(); // Refresh conversation list
                 }
+                // Handle message status updates (delivered, read)
+                else if (data.type === 'status_update') {
+                    setMessages(prev => prev.map(msg =>
+                        msg.id === data.messageId
+                            ? { ...msg, status: data.status }
+                            : msg
+                    ));
+                }
+                // Handle online status updates
+                else if (data.type === 'user_online') {
+                    setConversations(prev => prev.map(conv =>
+                        conv.user.id === data.userId
+                            ? { ...conv, user: { ...conv.user, online: true } }
+                            : conv
+                    ));
+                    if (selectedChat && selectedChat.user.id === data.userId) {
+                        setSelectedChat(prev => ({ ...prev, user: { ...prev.user, online: true } }));
+                    }
+                }
+                else if (data.type === 'user_offline') {
+                    setConversations(prev => prev.map(conv =>
+                        conv.user.id === data.userId
+                            ? { ...conv, user: { ...conv.user, online: false, lastSeen: data.lastSeen } }
+                            : conv
+                    ));
+                    if (selectedChat && selectedChat.user.id === data.userId) {
+                        setSelectedChat(prev => ({ ...prev, user: { ...prev.user, online: false, lastSeen: data.lastSeen } }));
+                    }
+                }
             });
         }
 
@@ -353,6 +382,13 @@ export default function Messages() {
                     : msg
             ));
 
+            // Send delivery confirmation via WebSocket
+            wsService.send({
+                type: 'message_sent',
+                messageId: message.id,
+                recipientId: selectedChat.user.id
+            });
+
             // Clear file selection
             setSelectedFile(null);
             setUploadingFile(false);
@@ -463,6 +499,12 @@ export default function Messages() {
             // Mark them as read
             for (const msg of unreadMessages) {
                 updateMessageStatus(msg.id, 'read');
+                // Notify sender via WebSocket
+                wsService.send({
+                    type: 'message_read',
+                    messageId: msg.id,
+                    senderId: msg.sender_id
+                });
             }
         }
     }, [selectedChat, messages]);
@@ -727,13 +769,13 @@ export default function Messages() {
                                     </div>
                                     <div className="flex-1 text-left min-w-0 py-1">
                                         <div className="flex items-center justify-between mb-0.5">
-                                            <p className="font-medium text-[#e9edef] truncate text-[15px]">{conv.user.name}</p>
+                                            <p className="font-medium text-[#e9edef] truncate text-[15px]" translate="no">{conv.user.name}</p>
                                             <p className="text-xs text-[#8696a0] flex-shrink-0 ml-2">
                                                 {formatTime(conv.time)}
                                             </p>
                                         </div>
                                         <div className="flex items-center justify-between gap-2">
-                                            <p className="text-sm text-[#8696a0] truncate flex items-center gap-1">
+                                            <p className="text-sm text-[#8696a0] truncate flex items-center gap-1" translate="no">
                                                 {conv.sender_id === user?.id && <CheckCheck className="w-3.5 h-3.5 flex-shrink-0 text-[#53bdeb]" />}
                                                 {conv.lastMessage}
                                             </p>
@@ -773,9 +815,9 @@ export default function Messages() {
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-[#e9edef] truncate text-[15px]">{selectedChat.user.name}</p>
+                                    <p className="font-medium text-[#e9edef] truncate text-[15px]" translate="no">{selectedChat.user.name}</p>
                                     <p className="text-xs text-[#8696a0] truncate">
-                                        {isTyping ? 'typing...' : selectedChat.user.online ? 'online' : selectedChat.time ? `last seen ${formatTime(selectedChat.time)}` : 'offline'}
+                                        {isTyping ? 'typing...' : selectedChat.user.online ? 'online' : selectedChat.user.lastSeen ? `last seen ${formatTime(selectedChat.user.lastSeen)}` : 'offline'}
                                     </p>
                                 </div>
                             </div>
@@ -850,7 +892,7 @@ export default function Messages() {
                                                     : 'bg-[#202c33] text-[#e9edef]'
                                                 }`}
                                         >
-                                            <p className="break-words text-[14.2px] leading-[19px]">{message.content}</p>
+                                            <p className="break-words text-[14.2px] leading-[19px]" translate="no">{message.content}</p>
                                             <div className="flex items-center justify-end gap-1 mt-1">
                                                 <span className="text-[11px] text-[#8696a0]">
                                                     {formatMessageTime(message.created_at)}
@@ -946,6 +988,8 @@ export default function Messages() {
                                         placeholder={selectedFile ? `Send ${selectedFile.name}` : "Type a message"}
                                         className="w-full px-4 py-2.5 bg-[#2a3942] text-[#e9edef] placeholder-[#8696a0] rounded-lg focus:outline-none text-[15px]"
                                         disabled={uploadingFile}
+                                        translate="no"
+                                        autoComplete="off"
                                     />
                                 </div>
                                 {newMessage.trim() || selectedFile ? (

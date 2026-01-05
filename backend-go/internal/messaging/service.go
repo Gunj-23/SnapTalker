@@ -337,6 +337,9 @@ func (s *Service) StreamMessages(c *gin.Context) {
 	s.clients[userID] = conn
 	defer delete(s.clients, userID)
 
+	// Broadcast user online status
+	s.broadcastUserStatus(userID, true)
+
 	// Set user as online in Redis
 	if s.redis != nil {
 		s.redis.Set(c.Request.Context(), fmt.Sprintf("online:%s", userID), "true", 5*time.Minute)
@@ -345,29 +348,78 @@ func (s *Service) StreamMessages(c *gin.Context) {
 	// Send any pending messages
 	s.sendPendingMessages(conn, userID)
 
+	// Keep connection alive with pings
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := conn.WriteJSON(map[string]string{"type": "ping"}); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
 	// Listen for messages
 	for {
-		var msg Message
-		err := conn.ReadJSON(&msg)
+		var wsMsg map[string]interface{}
+		err := conn.ReadJSON(&wsMsg)
 		if err != nil {
 			break
 		}
 
-		// Handle incoming message
-		s.handleWebSocketMessage(userID, msg)
+		// Handle different message types
+		msgType, ok := wsMsg["type"].(string)
+		if !ok {
+			continue
+		}
+
+		switch msgType {
+		case "message_read":
+			// Handle read receipt
+			if messageID, ok := wsMsg["messageId"].(string); ok {
+				s.notifyStatusUpdate(messageID, "read")
+			}
+		case "pong":
+			// Handle ping response
+			continue
+		}
 	}
 
-	// Set user as offline
+	// Set user as offline and broadcast
 	if s.redis != nil {
 		s.redis.Delete(c.Request.Context(), fmt.Sprintf("online:%s", userID))
 	}
+	s.broadcastUserStatus(userID, false)
 }
 
 // deliverMessage attempts to deliver a message to the recipient if online
 func (s *Service) deliverMessage(msg Message) {
 	if conn, ok := s.clients[msg.RecipientID]; ok {
 		// Recipient is online, send via WebSocket
-		conn.WriteJSON(msg)
+		notification := map[string]interface{}{
+			"type":        "new_message",
+			"id":          msg.ID,
+			"senderId":    msg.SenderID,
+			"recipientId": msg.RecipientID,
+			"content":     msg.Content,
+			"timestamp":   msg.Timestamp,
+			"encrypted":   msg.Encrypted,
+			"status":      "delivered",
+		}
+		conn.WriteJSON(notification)
+		
+		// Notify sender that message was delivered
+		if senderConn, ok := s.clients[msg.SenderID]; ok {
+			statusUpdate := map[string]interface{}{
+				"type":      "status_update",
+				"messageId": msg.ID,
+				"status":    "delivered",
+			}
+			senderConn.WriteJSON(statusUpdate)
+		}
 	}
 	// If offline, message is already stored in database for later retrieval
 }
@@ -418,4 +470,54 @@ func (s *Service) notifyStatusUpdate(messageID, status string) {
 			"status":    status,
 		})
 	}
+}
+
+// broadcastUserStatus notifies all relevant users about online/offline status
+func (s *Service) broadcastUserStatus(userID string, online bool) {
+	// Get all users who have conversations with this user
+	query := `
+		SELECT DISTINCT 
+			CASE 
+				WHEN sender_id = $1 THEN recipient_id
+				ELSE sender_id
+			END as other_user_id
+		FROM messages
+		WHERE sender_id = $1 OR recipient_id = $1
+	`
+	rows, err := s.db.Query(query, userID)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	statusType := "user_offline"
+	if online {
+		statusType = "user_online"
+	}
+
+	notification := map[string]interface{}{
+		"type":   statusType,
+		"userId": userID,
+	}
+
+	if !online {
+		notification["lastSeen"] = time.Now()
+	}
+
+	for rows.Next() {
+		var otherUserID string
+		if err := rows.Scan(&otherUserID); err != nil {
+			continue
+		}
+
+		// Notify if the other user is online
+		if conn, ok := s.clients[otherUserID]; ok {
+			conn.WriteJSON(notification)
+		}
+	}
+}
+
+// handleWebSocketMessage is deprecated - keeping for compatibility
+func (s *Service) handleWebSocketMessage(userID string, msg Message) {
+	// This function is no longer used but kept for backwards compatibility
 }
