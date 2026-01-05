@@ -1,8 +1,22 @@
 import axios from 'axios';
 
-// Updated to use Go backend (port 8080 instead of 8000)
-// Use same host as frontend for network compatibility
-const API_BASE_URL = import.meta.env.VITE_API_URL || `http://${window.location.hostname}:8080/api/v1`;
+// Production: Use environment variable or construct HTTPS URL based on current location
+const getApiUrl = () => {
+    // If environment variable is set, use it
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL;
+    }
+    
+    // For production on Vercel, use HTTPS with same hostname
+    if (window.location.hostname === 'snaptalker.vercel.app' || window.location.protocol === 'https:') {
+        return `${window.location.protocol}//${window.location.hostname}/api/v1`;
+    }
+    
+    // For local development
+    return `http://${window.location.hostname}:8080/api/v1`;
+};
+
+const API_BASE_URL = getApiUrl();
 
 const api = axios.create({
     baseURL: API_BASE_URL,

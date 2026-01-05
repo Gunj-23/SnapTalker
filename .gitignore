@@ -76,3 +76,5 @@ htmlcov/
 # Misc
 .cache/
 .mypy_cache/
+.vercel
+.env*.local

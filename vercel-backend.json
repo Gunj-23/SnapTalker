@@ -1,22 +1,22 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "backend-go/cmd/server/main.go",
-      "use": "@vercel/go"
+    "version": 2,
+    "builds": [
+        {
+            "src": "backend-go/cmd/server/main.go",
+            "use": "@vercel/go"
+        }
+    ],
+    "routes": [
+        {
+            "src": "/api/v1/(.*)",
+            "dest": "backend-go/cmd/server/main.go"
+        },
+        {
+            "src": "/health",
+            "dest": "backend-go/cmd/server/main.go"
+        }
+    ],
+    "env": {
+        "GO111MODULE": "on"
     }
-  ],
-  "routes": [
-    {
-      "src": "/api/v1/(.*)",
-      "dest": "backend-go/cmd/server/main.go"
-    },
-    {
-      "src": "/health",
-      "dest": "backend-go/cmd/server/main.go"
-    }
-  ],
-  "env": {
-    "GO111MODULE": "on"
-  }
 }

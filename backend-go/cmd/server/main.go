@@ -51,22 +51,36 @@ func main() {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
-	// Initialize Redis
-	redisClient, err := storage.NewRedisClient(getEnv("REDIS_URL", "redis://localhost:6379"))
-	if err != nil {
-		log.Fatalf("Failed to connect to Redis: %v", err)
+	// Initialize Redis (optional in production if not used)
+	var redisClient *storage.RedisClient
+	redisURL := getEnv("REDIS_URL", "")
+	if redisURL != "" {
+		redisClient, err = storage.NewRedisClient(redisURL)
+		if err != nil {
+			log.Printf("Warning: Failed to connect to Redis: %v", err)
+			log.Println("Continuing without Redis (some features may be limited)")
+		}
+	} else {
+		log.Println("Redis URL not configured, running without Redis")
 	}
 
-	// Initialize MinIO
-	minioClient, err := storage.NewMinIOClient(storage.MinIOConfig{
-		Endpoint:   getEnv("MINIO_ENDPOINT", "localhost:9000"),
-		AccessKey:  getEnv("MINIO_ACCESS_KEY", "minioadmin"),
-		SecretKey:  getEnv("MINIO_SECRET_KEY", "minioadmin"),
-		UseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
-		BucketName: getEnv("MINIO_BUCKET", "snaptalker"),
-	})
-	if err != nil {
-		log.Fatalf("Failed to connect to MinIO: %v", err)
+	// Initialize MinIO (optional for media storage)
+	var minioClient *storage.MinIOClient
+	minioEndpoint := getEnv("MINIO_ENDPOINT", "")
+	if minioEndpoint != "" {
+		minioClient, err = storage.NewMinIOClient(storage.MinIOConfig{
+			Endpoint:   minioEndpoint,
+			AccessKey:  getEnv("MINIO_ACCESS_KEY", "minioadmin"),
+			SecretKey:  getEnv("MINIO_SECRET_KEY", "minioadmin"),
+			UseSSL:     getEnv("MINIO_USE_SSL", "false") == "true",
+			BucketName: getEnv("MINIO_BUCKET", "snaptalker"),
+		})
+		if err != nil {
+			log.Printf("Warning: Failed to connect to MinIO: %v", err)
+			log.Println("Continuing without MinIO (media uploads will be limited)")
+		}
+	} else {
+		log.Println("MinIO not configured, media storage disabled")
 	}
 
 	// Initialize services
@@ -79,15 +93,27 @@ func main() {
 	router := gin.Default()
 
 	// CORS configuration
-	router.Use(cors.New(cors.Config{
-		AllowOriginFunc: func(origin string) bool {
-			return true // Allow all origins for development
-		},
+	corsConfig := cors.Config{
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
-	}))
+	}
+	
+	// Production: Only allow specific origins
+	if config.Environment == "production" {
+		corsConfig.AllowOrigins = []string{
+			"https://snaptalker.vercel.app",
+			"https://*.vercel.app",
+		}
+	} else {
+		// Development: Allow all origins
+		corsConfig.AllowOriginFunc = func(origin string) bool {
+			return true
+		}
+	}
+	
+	router.Use(cors.New(corsConfig))
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
