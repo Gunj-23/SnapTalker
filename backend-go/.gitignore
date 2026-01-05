@@ -1,0 +1,21 @@
+# Go Backend Files
+backend-go/vendor/
+backend-go/*.exe
+backend-go/*.test
+backend-go/*.out
+backend-go/.DS_Store
+
+# Configuration
+backend-go/.env
+
+# Logs
+backend-go/logs/
+backend-go/*.log
+
+# IDE
+backend-go/.vscode/
+backend-go/.idea/
+backend-go/*.swp
+backend-go/*.swo
+
+/generated/prisma

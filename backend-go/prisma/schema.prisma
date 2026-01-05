@@ -1,0 +1,65 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "go run github.com/steebchen/prisma-client-go"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String    @id @default(uuid())
+  username              String    @unique
+  phone                 String    @unique
+  email                 String    @unique
+  passwordHash          String    @map("password_hash")
+  identityKey           String?   @map("identity_key")
+  signedPrekeyId        Int       @default(0) @map("signed_prekey_id")
+  signedPrekey          String    @default("") @map("signed_prekey")
+  signedPrekeySignature String    @default("") @map("signed_prekey_signature")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+  keyBundle        KeyBundle?
+
+  @@index([phone])
+  @@index([email])
+  @@map("users")
+}
+
+model Message {
+  id               String   @id @default(uuid())
+  senderId         String   @map("sender_id")
+  recipientId      String   @map("recipient_id")
+  encryptedContent String   @map("encrypted_content")
+  iv               String
+  messageNumber    Int      @map("message_number")
+  timestamp        DateTime @default(now())
+  status           String   @default("sent")
+  mediaUrl         String?  @map("media_url")
+  
+  sender    User @relation("SentMessages", fields: [senderId], references: [id])
+  recipient User @relation("ReceivedMessages", fields: [recipientId], references: [id])
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([timestamp])
+  @@map("messages")
+}
+
+model KeyBundle {
+  userId                String   @id @map("user_id")
+  identityKey           String   @map("identity_key")
+  signedPrekey          String   @map("signed_prekey")
+  signedPrekeySignature String   @map("signed_prekey_signature")
+  onetimePrekeys        String[] @map("onetime_prekeys")
+  createdAt             DateTime @default(now()) @map("created_at")
+  
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("key_bundles")
+}
