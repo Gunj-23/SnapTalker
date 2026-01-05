@@ -130,6 +130,9 @@ export default function Messages() {
             }
         } catch (error) {
             console.error('Failed to load conversations:', error);
+            if (error.response?.data) {
+                console.error('Server response:', error.response.data);
+            }
             // Load from cache if network fails
             loadCachedConversations();
         }
@@ -240,6 +243,9 @@ export default function Messages() {
             }
         } catch (error) {
             console.error('Failed to load messages:', error);
+            if (error.response?.data) {
+                console.error('Server response:', error.response.data);
+            }
             // Try to load from cache
             try {
                 const cacheKey = `messages_${selectedChat.user.id}`;
@@ -276,6 +282,17 @@ export default function Messages() {
         const messageContent = newMessage;
         setNewMessage('');
 
+        // Add optimistic message to UI
+        const optimisticMessage = {
+            id: Date.now(),
+            sender_id: user?.id,
+            content: messageContent,
+            created_at: new Date(),
+            encrypted: false,
+            status: 'sending'
+        };
+        setMessages([...messages, optimisticMessage]);
+
         try {
             // Prepare message data
             const messageData = {
@@ -284,17 +301,6 @@ export default function Messages() {
                 iv: 'placeholder-iv',
                 messageNumber: messages.length + 1
             };
-
-            // Add optimistic message to UI
-            const optimisticMessage = {
-                id: Date.now(),
-                sender_id: user?.id,
-                content: messageContent,
-                created_at: new Date(),
-                encrypted: false,
-                status: 'sending'
-            };
-            setMessages([...messages, optimisticMessage]);
 
             // Send to backend API
             const resp = await api.post('/messages/send', messageData);
@@ -324,11 +330,16 @@ export default function Messages() {
                     : msg
             ));
 
+            // Log detailed error for debugging
+            if (error.response?.data) {
+                console.error('Server error details:', error.response.data);
+            }
+
             // Show user-friendly error
             if (error.response?.status === 401) {
                 alert('Session expired. Please login again.');
             } else if (error.response?.status >= 500) {
-                alert('Server error. Message will be retried.');
+                alert('Server error. Check console for details.');
             } else {
                 alert('Failed to send message. Please try again.');
             }
