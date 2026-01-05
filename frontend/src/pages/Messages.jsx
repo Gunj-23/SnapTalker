@@ -298,45 +298,40 @@ export default function Messages() {
 
             // Send to backend API
             const resp = await api.post('/messages/send', messageData);
-            if (resp.status >= 200 && resp.status < 300) {
-                const message = resp.data;
+            const message = resp.data;
 
-                // Update message with server response
-                setMessages(prev => prev.map(msg =>
-                    msg.id === optimisticMessage.id
-                        ? {
-                            ...msg,
-                            id: message.id,
-                            content: message.encryptedContent,
-                            status: 'sent'
-                        }
-                        : msg
-                ));
+            // Update message with server response
+            setMessages(prev => prev.map(msg =>
+                msg.id === optimisticMessage.id
+                    ? {
+                        ...msg,
+                        id: message.id,
+                        content: message.encryptedContent,
+                        status: 'sent'
+                    }
+                    : msg
+            ));
 
-                // Reload conversations to get updated lastMessage from server
-                loadConversations();
-            } else {
-                // Mark message as failed instead of removing
-                setMessages(prev => prev.map(msg =>
-                    msg.id === optimisticMessage.id
-                        ? { ...msg, status: 'failed' }
-                        : msg
-                ));
-
-                const errorText = resp.data || 'unknown error';
-                console.error('Failed to send message:', errorText);
-
-                // Show user-friendly error
-                if (resp.status === 401) {
-                    alert('Session expired. Please login again.');
-                } else if (resp.status >= 500) {
-                    alert('Server error. Message will be retried.');
-                } else {
-                    alert('Failed to send message. Please try again.');
-                }
-            }
+            // Reload conversations to get updated lastMessage from server
+            loadConversations();
         } catch (error) {
             console.error('Failed to send message:', error);
+            
+            // Mark message as failed
+            setMessages(prev => prev.map(msg =>
+                msg.id === optimisticMessage.id
+                    ? { ...msg, status: 'failed' }
+                    : msg
+            ));
+
+            // Show user-friendly error
+            if (error.response?.status === 401) {
+                alert('Session expired. Please login again.');
+            } else if (error.response?.status >= 500) {
+                alert('Server error. Message will be retried.');
+            } else {
+                alert('Failed to send message. Please try again.');
+            }
         }
     };
 
@@ -364,27 +359,19 @@ export default function Messages() {
 
         try {
             const resp = await api.post('/messages/send', messageData);
-
-            if (resp.status >= 200 && resp.status < 300) {
-                const message = resp.data;
-                setMessages(prev => prev.map(msg =>
-                    msg.id === optimisticMessage.id
-                        ? {
-                            ...msg,
-                            id: message.id,
-                            content: message.encryptedContent,
-                            status: 'sent'
-                        }
-                        : msg
-                ));
-                loadConversations();
-            } else {
-                setMessages(prev => prev.map(msg =>
-                    msg.id === optimisticMessage.id
-                        ? { ...msg, status: 'failed' }
-                        : msg
-                ));
-            }
+            const message = resp.data;
+            
+            setMessages(prev => prev.map(msg =>
+                msg.id === optimisticMessage.id
+                    ? {
+                        ...msg,
+                        id: message.id,
+                        content: message.encryptedContent,
+                        status: 'sent'
+                    }
+                    : msg
+            ));
+            loadConversations();
         } catch (error) {
             console.error('Retry failed:', error);
             setMessages(prev => prev.map(msg =>
