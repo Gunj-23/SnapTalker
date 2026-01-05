@@ -119,10 +119,12 @@ func (s *Service) SendMessage(c *gin.Context) {
 	// Deliver message via WebSocket if recipient is online
 	s.deliverMessage(message)
 
-	// Store in Redis for fast recent message access
-	messageJSON, _ := json.Marshal(message)
-	s.redis.LPush(c.Request.Context(), fmt.Sprintf("chat:%s:%s", senderID, req.RecipientID), messageJSON)
-	s.redis.LTrim(c.Request.Context(), fmt.Sprintf("chat:%s:%s", senderID, req.RecipientID), 0, 99) // Keep last 100
+	// Store in Redis for fast recent message access (if Redis is configured)
+	if s.redis != nil {
+		messageJSON, _ := json.Marshal(message)
+		s.redis.LPush(c.Request.Context(), fmt.Sprintf("chat:%s:%s", senderID, req.RecipientID), messageJSON)
+		s.redis.LTrim(c.Request.Context(), fmt.Sprintf("chat:%s:%s", senderID, req.RecipientID), 0, 99) // Keep last 100
+	}
 
 	c.JSON(http.StatusOK, message)
 }
@@ -139,6 +141,13 @@ type Conversation struct {
 // GetConversations retrieves all conversations for a user
 func (s *Service) GetConversations(c *gin.Context) {
 	userID := c.GetString("userId")
+
+	// Check if userId is present
+	if userID == "" {
+		log.Printf("GetConversations: userId is empty")
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "unauthorized"})
+		return
+	}
 
 	// Get all unique conversation partners with their last message
 	query := `
