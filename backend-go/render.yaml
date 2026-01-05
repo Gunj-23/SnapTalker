@@ -11,11 +11,21 @@ services:
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
-        value: prisma+postgres://accelerate.prisma-data.net/?api_key=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqd3RfaWQiOjEsInNlY3VyZV9rZXkiOiJza19qdXFNbHJsZ1BQVWs1dHdrYmtkOHQiLCJhcGlfa2V5IjoiMDFLRTZCNjJYR1JZQ0dSU0gwWFAwQlM1R0EiLCJ0ZW5hbnRfaWQiOiJkYTBmZTRiNDlhNTVhYThiMzYwOGYxYjBkZGNhMjZlZjIyYWY3MzczZjgyZmE1MDY2NjYwOTBiMTBhODg4NWUyIiwiaW50ZXJuYWxfc2VjcmV0IjoiMjRjOTUzOGMtMTA2OS00ZDJjLWJiMzgtYjg2ZjUzMmU3NDIyIn0.aUpYXNeQDqAx9-yhdmxtjOpufQTpQ0h92ZgaPEYsk4U
+        value: postgresql://snaptalker_db_user:On6P9R6lRcTsQKwFUeMKoQyWTLbSA8w6@dpg-d5dm39shg0os73fbjirg-a.singapore-postgres.render.com/snaptalker_db?sslmode=require
       - key: JWT_SECRET
         value: snaptalker-super-secret-jwt-key-for-production-2026-min-256-bits
       - key: ENVIRONMENT
         value: production
       - key: PORT
         value: 8080
+      - key: SMTP_HOST
+        value: smtp.gmail.com
+      - key: SMTP_PORT
+        value: 587
+      - key: SMTP_USERNAME
+        value: help.snaptalker@gmail.com
+      - key: SMTP_PASSWORD
+        value: wzuevnxnbohxsoae
+      - key: FROM_EMAIL
+        value: help.snaptalker@gmail.com
     autoDeploy: true
