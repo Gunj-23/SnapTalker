@@ -321,7 +321,9 @@ func (s *Service) StreamMessages(c *gin.Context) {
 	defer delete(s.clients, userID)
 
 	// Set user as online in Redis
-	s.redis.Set(c.Request.Context(), fmt.Sprintf("online:%s", userID), "true", 5*time.Minute)
+	if s.redis != nil {
+		s.redis.Set(c.Request.Context(), fmt.Sprintf("online:%s", userID), "true", 5*time.Minute)
+	}
 
 	// Send any pending messages
 	s.sendPendingMessages(conn, userID)
@@ -339,7 +341,9 @@ func (s *Service) StreamMessages(c *gin.Context) {
 	}
 
 	// Set user as offline
-	s.redis.Delete(c.Request.Context(), fmt.Sprintf("online:%s", userID))
+	if s.redis != nil {
+		s.redis.Delete(c.Request.Context(), fmt.Sprintf("online:%s", userID))
+	}
 }
 
 // deliverMessage attempts to deliver a message to the recipient if online

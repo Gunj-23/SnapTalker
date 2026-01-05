@@ -140,7 +140,9 @@ func (s *Service) SendOffer(c *gin.Context) {
 		"status":   "ringing",
 	}
 	callJSON, _ := json.Marshal(callInfo)
-	s.redis.Set(c.Request.Context(), fmt.Sprintf("call:%s", req.CallID), callJSON, 5*time.Minute)
+	if s.redis != nil {
+		s.redis.Set(c.Request.Context(), fmt.Sprintf("call:%s", req.CallID), callJSON, 5*time.Minute)
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "offer sent"})
 }
@@ -171,7 +173,9 @@ func (s *Service) SendAnswer(c *gin.Context) {
 	
 	// Update call status in Redis
 	callKey := fmt.Sprintf("call:%s", req.CallID)
-	s.redis.Set(c.Request.Context(), callKey+":status", "connected", 2*time.Hour)
+	if s.redis != nil {
+		s.redis.Set(c.Request.Context(), callKey+":status", "connected", 2*time.Hour)
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "answer sent"})
 }

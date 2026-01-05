@@ -133,7 +133,9 @@ func (s *Service) UploadKeyBundle(c *gin.Context) {
 
 	// Cache the key bundle in Redis for fast access
 	bundleJSON, _ := json.Marshal(req)
-	s.redis.Set(c.Request.Context(), fmt.Sprintf("keybundle:%s", userID), bundleJSON, 24*time.Hour)
+	if s.redis != nil {
+		s.redis.Set(c.Request.Context(), fmt.Sprintf("keybundle:%s", userID), bundleJSON, 24*time.Hour)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "key bundle uploaded successfully",
@@ -153,7 +155,11 @@ func (s *Service) GetKeyBundle(c *gin.Context) {
 
 	// Check cache first
 	cacheKey := fmt.Sprintf("keybundle:%s", targetUserID)
-	cached, err := s.redis.Get(c.Request.Context(), cacheKey)
+	var cached string
+	var err error
+	if s.redis != nil {
+		cached, err = s.redis.Get(c.Request.Context(), cacheKey)
+	}
 	if err == nil && cached != "" {
 		var bundle KeyBundle
 		if json.Unmarshal([]byte(cached), &bundle) == nil {
@@ -208,7 +214,9 @@ func (s *Service) GetKeyBundle(c *gin.Context) {
 
 	// Cache the bundle
 	bundleJSON, _ := json.Marshal(bundle)
-	s.redis.Set(c.Request.Context(), cacheKey, bundleJSON, 24*time.Hour)
+	if s.redis != nil {
+		s.redis.Set(c.Request.Context(), cacheKey, bundleJSON, 24*time.Hour)
+	}
 
 	// Log the key exchange for security audit
 	s.logKeyExchange(c.Request.Context(), requestingUserID, targetUserID)
@@ -243,7 +251,9 @@ func (s *Service) RotateSignedPreKey(c *gin.Context) {
 	}
 
 	// Invalidate cache
-	s.redis.Delete(c.Request.Context(), fmt.Sprintf("keybundle:%s", userID))
+	if s.redis != nil {
+		s.redis.Delete(c.Request.Context(), fmt.Sprintf("keybundle:%s", userID))
+	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "signed pre-key rotated successfully"})
 }
